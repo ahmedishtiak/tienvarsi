@@ -1,0 +1,1445 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Tienvarsi: fuel, charging, parking and car washes in Finland</title>
+<meta name="description" content="Community map of fuel prices, EV charging, free and cheap parking, car washes and drive-throughs across Finland.">
+<meta name="theme-color" content="#1452A8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231452A8'/%3E%3Crect x='2.5' y='2.5' width='27' height='27' rx='5' fill='none' stroke='%23fff' stroke-width='1.6'/%3E%3Cpath d='M9 26 13.5 6M23 26 18.5 6' stroke='%23fff' stroke-width='2.4' stroke-linecap='round'/%3E%3Cpath d='M16 24v-3M16 17.5v-2.5M16 11.5V10' stroke='%23FFC93C' stroke-width='2.2' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css">
+<style>
+:root{
+  --ink:#18202A; --ink-2:#4B5663; --ink-3:#7A8592;
+  --frost:#EEF2F6; --panel:#FFFFFF; --line:#D9E0E7;
+  --sign:#1452A8; --lane:#FFC93C; --danger:#C8233A;
+  --fuel:#EE8A00; --ev:#13A06B; --park:#1452A8; --wash:#0A93B8; --drive:#B03A7F;
+  --free:#13A06B; --disc:#1452A8; --paid:#7D8896; --cond:#B98900;
+  --plate-ink:#121820;
+  --shadow-s:0 1px 2px rgba(16,32,52,.14),0 4px 14px rgba(16,32,52,.14);
+  --font:'Barlow',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --cond-f:'Barlow Condensed','Barlow',system-ui,sans-serif;
+  --peek:calc(196px + env(safe-area-inset-bottom));
+}
+@media (prefers-color-scheme:dark){
+  :root{--ink:#E8EDF2;--ink-2:#B3BDC8;--ink-3:#8692A0;--frost:#1C232C;--panel:#131920;--line:#2A333E;
+    --shadow-s:0 1px 2px rgba(0,0,0,.5),0 6px 18px rgba(0,0,0,.4)}
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0;height:100%}
+body{font-family:var(--font);font-size:15px;line-height:1.45;color:var(--ink);background:#E6EAEE;overflow:hidden;-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent}
+button{font:inherit;color:inherit;cursor:pointer}
+a{color:var(--sign)}
+@media (prefers-color-scheme:dark){a{color:#7EB0F5}}
+:focus-visible{outline:3px solid var(--lane);outline-offset:2px}
+svg.i{width:20px;height:20px;flex:none}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+#map{position:fixed;inset:0;z-index:0;background:#E6EAEE}
+.leaflet-container{font-family:var(--font);background:#E6EAEE}
+.leaflet-control-attribution{font-size:10.5px;line-height:1.35;max-width:calc(100vw - 70px);background:rgba(255,255,255,.82)!important;border-radius:6px 0 0 0}
+.leaflet-bottom{bottom:var(--peek)}
+.leaflet-control-zoom{display:none}
+
+/* Header: brand sign, search, language, service signs */
+.top{position:fixed;z-index:500;top:0;left:0;right:0;padding:calc(env(safe-area-inset-top) + 10px) 12px 0;display:grid;gap:10px;pointer-events:none}
+.top>*{pointer-events:auto}
+.bar{display:flex;gap:8px;align-items:center;min-width:0}
+.brand{flex:none;display:flex;align-items:center;gap:7px;height:44px;padding:0 11px;border-radius:8px;background:var(--sign);color:#fff;text-decoration:none;
+  box-shadow:inset 0 0 0 3px var(--sign),inset 0 0 0 4.6px #fff,var(--shadow-s);font:700 22px/1 var(--cond-f)}
+.brand svg{width:22px;height:22px}
+.brand span{display:none}
+@media (min-width:480px){.brand span{display:inline}}
+.search{position:relative;flex:1;min-width:0;display:flex;align-items:center;gap:6px;height:44px;padding:0 6px 0 12px;background:var(--panel);border-radius:12px;box-shadow:var(--shadow-s)}
+.search>svg{color:var(--ink-3)}
+.search input{flex:1;min-width:0;height:100%;border:0;outline:0;background:transparent;color:var(--ink);font:500 16px var(--font)}
+.search input::placeholder{color:var(--ink-3)}
+.results{position:absolute;top:50px;left:0;right:0;margin:0;padding:6px;list-style:none;background:var(--panel);border-radius:12px;box-shadow:var(--shadow-s);max-height:50vh;overflow:auto}
+.results button{width:100%;text-align:left;border:0;background:none;padding:10px;border-radius:8px;display:block}
+.results button:hover{background:var(--frost)}
+.results .r1{font-weight:600;display:block}
+.results .r2{font-size:13px;color:var(--ink-3)}
+.results p{margin:8px 10px;color:var(--ink-2)}
+.lang{flex:none;display:flex;gap:2px;height:44px;padding:4px;background:var(--panel);border-radius:12px;box-shadow:var(--shadow-s)}
+.lang button{border:0;background:none;border-radius:8px;padding:0 8px;font:600 14px var(--cond-f);letter-spacing:.04em;color:var(--ink-2)}
+.lang button[aria-pressed=true]{background:var(--ink);color:var(--panel)}
+
+.signs{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding:0 2px 8px;margin:0 -2px}
+.signs::-webkit-scrollbar{display:none}
+.sign{flex:none;display:flex;align-items:center;gap:0;height:46px;padding:4px;border:0;border-radius:10px;background:var(--panel);box-shadow:var(--shadow-s);font:600 15px var(--font);transition:background .2s,color .2s}
+.sq{flex:none;width:38px;height:38px;border-radius:6px;display:grid;place-items:center;color:#fff;background:var(--sign);
+  box-shadow:inset 0 0 0 2.2px var(--sign),inset 0 0 0 3.6px #fff}
+.sq svg{width:22px;height:22px}
+.sq.cc{background:var(--c);box-shadow:inset 0 0 0 2.2px var(--c),inset 0 0 0 3.6px #fff}
+.pfee{background:var(--fc);box-shadow:inset 0 0 0 2.2px var(--fc),inset 0 0 0 3.6px #fff}
+.pfee.fee-unknown{color:var(--sign);box-shadow:inset 0 0 0 2.2px var(--sign)}
+[data-drag]{touch-action:none}
+.sign .lbl{max-width:0;overflow:hidden;white-space:nowrap;transition:max-width .28s ease,padding .28s ease}
+.sign[aria-selected=true]{background:var(--ink);color:var(--panel)}
+.sign[aria-selected=true] .sq{background:var(--c);box-shadow:inset 0 0 0 2.2px var(--c),inset 0 0 0 3.6px #fff}
+.sign[aria-selected=true] .lbl{max-width:160px;padding:0 10px 0 10px}
+
+/* Floating buttons */
+.fabs{position:fixed;z-index:550;right:12px;bottom:calc(var(--peek) + 14px);display:grid;gap:8px;transition:opacity .2s}
+.fab{width:46px;height:46px;border:0;border-radius:12px;display:grid;place-items:center;background:var(--panel);color:var(--ink);box-shadow:var(--shadow-s)}
+.fab.add{background:var(--sign);color:#fff;box-shadow:inset 0 0 0 2.2px var(--sign),inset 0 0 0 3.6px #fff,var(--shadow-s)}
+body.sheet-up .fabs{opacity:0;pointer-events:none}
+
+/* Bottom sheet */
+.sheet{position:fixed;z-index:600;left:0;right:0;bottom:0;height:calc(100dvh - 128px - env(safe-area-inset-top));display:flex;flex-direction:column;background:var(--panel);border-radius:22px 22px 0 0;
+  box-shadow:0 -6px 28px rgba(16,32,52,.18);transform:translateY(calc(100% - var(--peek)));transition:transform .34s cubic-bezier(.2,.8,.2,1);touch-action:none}
+.sheet.half{transform:translateY(calc(100% - 56dvh))}
+.sheet.half .sh-body{padding-bottom:calc(44dvh - 104px - env(safe-area-inset-top) + env(safe-area-inset-bottom))}
+.sheet.full{transform:translateY(0)}
+.sheet.dragging{transition:none}
+.handle{flex:none;height:26px;display:grid;place-items:center;cursor:grab;border:0;background:none;width:100%}
+.handle span{width:44px;height:5px;border-radius:3px;background:var(--line)}
+.sh-body{flex:1;overflow:auto;overscroll-behavior:contain;touch-action:pan-y;padding-bottom:calc(24px + env(safe-area-inset-bottom))}
+
+.sh-head{padding:0 18px 10px}
+.sh-title{display:flex;align-items:center;gap:10px;min-height:40px}
+.sh-title .sq{width:34px;height:34px}
+.sh-title .sq svg{width:20px;height:20px}
+.sh-title h2{margin:0;font:600 26px/1.05 var(--cond-f);letter-spacing:.005em}
+.count{font:600 16px var(--cond-f);color:var(--ink-3)}
+.ctl{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin:12px -18px 0;padding:0 18px}
+.ctl::-webkit-scrollbar{display:none}
+.chip{flex:none;height:34px;padding:0 13px;border:1.5px solid var(--line);border-radius:999px;background:var(--panel);color:var(--ink-2);font:600 14px var(--font);display:inline-flex;align-items:center;gap:6px}
+.chip[aria-pressed=true]{background:var(--ink);border-color:var(--ink);color:var(--panel)}
+.chip .dot{width:9px;height:9px;border-radius:2px;background:var(--c)}
+.ctl .gap{flex:none;width:10px}
+.status{margin:0 18px 8px;font-size:14px;color:var(--ink-2);display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.status .linkbtn{border:0;background:none;color:var(--sign);font-weight:600;padding:0;text-decoration:underline}
+.spin{width:14px;height:14px;border-radius:50%;border:2px solid var(--line);border-top-color:var(--sign);animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.rows{list-style:none;margin:0;padding:0 8px}
+.row{width:100%;display:grid;grid-template-columns:34px 1fr auto;gap:12px;align-items:center;padding:10px;border:0;border-radius:12px;background:none;text-align:left}
+.row:hover{background:var(--frost)}
+.row .sq{width:34px;height:34px}
+.row .sq svg{width:19px;height:19px}
+.row .nm{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .sub{display:flex;gap:12px;font-size:13.5px;color:var(--ink-3);white-space:nowrap;overflow:hidden}
+.row .val{font:600 15px var(--cond-f);color:var(--ink-2);text-align:right}
+.row .val.muted{font:500 13px var(--font);color:var(--ink-3)}
+.sqP{font:700 21px/1 var(--cond-f)}
+
+/* Number-plate price chip */
+.plate{display:inline-flex;align-items:stretch;height:24px;background:#fff;border:1.6px solid var(--plate-ink);border-radius:4px;overflow:hidden;
+  font:600 15px/1 var(--cond-f);color:var(--plate-ink);font-variant-numeric:tabular-nums;box-shadow:0 1px 0 rgba(0,0,0,.18)}
+.plate::before{content:'';width:7px;flex:none;background:radial-gradient(circle at 50% 32%,#FFD400 0 1.3px,transparent 1.8px),#1D4CB2}
+.plate>span{display:flex;align-items:center;padding:0 6px 0 5px;letter-spacing:.02em}
+.plate.cheap{background:var(--lane)}
+.plate.stale>span{color:#6E7884}
+.plate.lg{height:32px;font-size:20px;border-width:2px}
+.plate.lg::before{width:9px}
+.plate.none{border-style:dashed;border-color:#9AA4AF;box-shadow:none}
+.plate.none>span{color:#8A94A0;font-weight:500}
+
+/* Map markers */
+.mk{width:0!important;height:0!important;background:none;border:0}
+.pin{position:absolute;left:0;top:0;transform:translate(-50%,-50%);transition:transform .15s}
+.pin-dot{width:30px;height:30px;border-radius:7px;display:grid;place-items:center;color:#fff;background:var(--c);
+  box-shadow:inset 0 0 0 2px var(--c),inset 0 0 0 3.2px rgba(255,255,255,.95),0 2px 6px rgba(16,32,52,.35)}
+.pin-dot svg{width:18px;height:18px}
+.pin.dim{opacity:.55}
+.pin-tag{position:absolute;left:50%;top:calc(100% + 2px);transform:translateX(-50%);padding:2px 4px;border-radius:3px;background:#fff;color:var(--plate-ink);font:700 11px/1 var(--cond-f);white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+.pin-plate{transform:translate(-50%,calc(-100% - 7px));filter:drop-shadow(0 2px 4px rgba(16,32,52,.35))}
+.pin-plate::after{content:'';position:absolute;left:50%;bottom:-7px;transform:translateX(-50%);border:6px solid transparent;border-bottom:0;border-top:7px solid var(--plate-ink)}
+.pin-p{width:28px;height:28px;border-radius:6px;display:grid;place-items:center;color:#fff;font:700 19px/1 var(--cond-f);background:var(--fc);
+  box-shadow:inset 0 0 0 2px var(--fc),inset 0 0 0 3.2px rgba(255,255,255,.95),0 2px 6px rgba(16,32,52,.35)}
+.fee-free{--fc:var(--free)}.fee-disc{--fc:var(--disc)}.fee-paid{--fc:var(--paid)}.fee-cond{--fc:var(--cond)}
+.fee-unknown{--fc:#fff}
+.pin-p.fee-unknown{color:var(--sign);box-shadow:inset 0 0 0 2px var(--sign),0 2px 6px rgba(16,32,52,.35)}
+.pin.sel{transform:translate(-50%,-50%) scale(1.28);z-index:2}
+.pin-plate.sel{transform:translate(-50%,calc(-100% - 7px)) scale(1.18);transform-origin:50% 130%}
+.pin.user::before{content:'';position:absolute;inset:-4px;border:2px dashed var(--c,var(--sign));border-radius:10px}
+.pin-cl{display:flex;align-items:center;gap:5px;transform:translate(-50%,-50%)}
+.pin-cl b{min-width:32px;height:32px;padding:0 7px;border-radius:16px;display:grid;place-items:center;color:#fff;font:700 15px/1 var(--cond-f);background:var(--c);
+  box-shadow:0 0 0 3px rgba(255,255,255,.9),0 2px 8px rgba(16,32,52,.35)}
+.pin-cl .plate{height:22px;font-size:13px;box-shadow:0 2px 6px rgba(16,32,52,.3)}
+.me-dot{width:18px;height:18px;border-radius:50%;background:#1A6FE0;box-shadow:0 0 0 3px #fff,0 0 0 9px rgba(26,111,224,.22)}
+.drop{width:22px;height:22px;border-radius:50% 50% 50% 0;transform:translate(-50%,-115%) rotate(-45deg);background:var(--ink);box-shadow:0 0 0 3px #fff,0 3px 8px rgba(0,0,0,.35)}
+.placing-pin{width:26px;height:26px;border-radius:50% 50% 50% 0;transform:translate(-50%,-115%) rotate(-45deg);background:var(--lane);box-shadow:0 0 0 3px var(--plate-ink),0 4px 10px rgba(0,0,0,.4)}
+
+/* Detail */
+.dt-top{display:flex;justify-content:space-between;align-items:center;padding:0 10px 4px}
+.ghost{display:inline-flex;align-items:center;gap:4px;height:40px;padding:0 10px;border:0;border-radius:10px;background:none;color:var(--ink-2);font-weight:600}
+.ghost:hover{background:var(--frost)}
+.dt-name{margin:0 18px;font:600 30px/1.05 var(--cond-f);letter-spacing:.005em}
+.dt-sub{margin:6px 18px 0;color:var(--ink-2)}
+.dt-badges{display:flex;flex-wrap:wrap;gap:6px;margin:10px 18px 0}
+.badge{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border-radius:6px;font-weight:600;font-size:13.5px;background:var(--frost);color:var(--ink-2)}
+.badge.fee{color:#fff;background:var(--fc)}
+.badge.fee-unknown{color:var(--ink-2);background:var(--frost)}
+.notice{margin:14px 18px 0;padding:12px 14px;border-radius:12px;background:#FFF4D6;color:#5B4300;font-size:14px;border-left:4px solid var(--lane)}
+@media (prefers-color-scheme:dark){.notice{background:#3A3013;color:#F7E3A6}}
+.actions{display:flex;flex-wrap:wrap;gap:8px;margin:16px 18px 0}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:46px;padding:0 16px;border:1.5px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink);font:600 15px var(--font);text-decoration:none}
+.actions>.btn{flex:1 1 auto}
+.btn.primary{border:0;background:var(--sign);color:#fff;box-shadow:inset 0 0 0 2.2px var(--sign),inset 0 0 0 3.6px rgba(255,255,255,.92)}
+.btn[disabled]{opacity:.6;cursor:default}
+.sec{margin:22px 18px 0}
+.sec h3{margin:0 0 10px;font:600 19px/1.2 var(--cond-f)}
+.facts{display:grid;grid-template-columns:auto 1fr;gap:6px 16px;margin:0;font-size:14.5px}
+.facts dt{color:var(--ink-3)}
+.facts dd{margin:0;overflow-wrap:anywhere}
+.board{display:grid;grid-template-columns:auto auto 1fr;gap:10px 14px;align-items:center;margin:16px 18px 0;padding:14px 16px;border-radius:14px;background:var(--frost)}
+.board .ft{font-weight:600}
+.board .age{font-size:13px;color:var(--ink-3)}
+.sockets{display:flex;flex-wrap:wrap;gap:8px}
+.socket{display:flex;align-items:baseline;gap:8px;padding:8px 12px;border-radius:10px;background:var(--frost)}
+.socket b{font:600 17px var(--cond-f)}
+.socket span{font-size:13px;color:var(--ink-3)}
+
+/* Parking disc */
+.disc{display:grid;grid-template-columns:132px 1fr;gap:16px;align-items:center;margin:16px 18px 0;padding:14px;border-radius:16px;background:var(--frost)}
+.disc svg{width:132px;height:132px;display:block}
+.disc .hand{transform-origin:112px 108px;transition:transform .9s cubic-bezier(.3,1.4,.5,1)}
+.disc .set{font:600 15px var(--font);color:var(--ink-2);margin:0}
+.disc .time{font:700 44px/1 var(--cond-f);color:var(--ink);margin:2px 0 6px;font-variant-numeric:tabular-nums}
+.disc .small{font-size:13.5px;color:var(--ink-2);margin:0}
+@media (prefers-reduced-motion:reduce){.disc .hand,.sign,.sign .lbl,.sheet,.pin{transition:none}}
+
+/* Reports */
+.reps{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.rep{padding:12px 14px;border-radius:12px;border:1.5px solid var(--line)}
+.rep.low{opacity:.55}
+.kvs{display:flex;flex-wrap:wrap;gap:6px 14px}
+.kv{font-size:14.5px}
+.kv i{font-style:normal;color:var(--ink-3);margin-right:5px}
+.kv b{font:600 16px var(--cond-f);font-variant-numeric:tabular-nums}
+.rep-note{margin:6px 0 0;font-size:14px;color:var(--ink-2);overflow-wrap:anywhere}
+.rep-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px;font-size:13px;color:var(--ink-3)}
+.votes{display:flex;gap:6px}
+.vote{height:32px;padding:0 10px;border:1.5px solid var(--line);border-radius:8px;background:var(--panel);font:600 13px var(--font);color:var(--ink-2)}
+.vote[aria-pressed=true]{border-color:var(--ink);color:var(--ink)}
+.vote b{font-family:var(--cond-f);margin-left:3px}
+.empty{color:var(--ink-3);font-size:14px;margin:0}
+.src{margin:22px 18px 0;font-size:13px;color:var(--ink-3)}
+
+/* Offers */
+.offer{margin:0 18px 12px;padding:14px 16px;border-radius:14px;background:var(--frost);border-left:5px solid var(--c)}
+.of-top{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.of-brand{font:700 15px var(--cond-f);letter-spacing:.02em;color:var(--ink-2)}
+.of-cats{display:flex;gap:4px}
+.of-cats .sq,.of-cats .sq.cc{width:22px;height:22px;border-radius:4px;box-shadow:inset 0 0 0 1.5px var(--c),inset 0 0 0 2.4px #fff}
+.of-cats .sq svg{width:13px;height:13px}
+.offer h4{margin:6px 0 4px;font:600 19px/1.2 var(--cond-f)}
+.offer p{margin:0;font-size:14.5px;color:var(--ink-2)}
+.offer .of-meta{margin-top:8px;font-size:13px;color:var(--ink-3);display:flex;gap:12px;flex-wrap:wrap}
+.lead{margin:6px 18px 0;color:var(--ink-2);font-size:14.5px;max-width:60ch}
+.sub-h{margin:24px 18px 10px;font:600 20px var(--cond-f)}
+
+/* Forms */
+.form{display:grid;gap:14px;padding:6px 18px 8px}
+.form h2{margin:0;font:600 26px/1.1 var(--cond-f)}
+.form .for{margin:-8px 0 0;color:var(--ink-2)}
+.fld label,.fld .lb{display:block;margin-bottom:6px;font-weight:600;font-size:14px}
+.fld .opt{font-weight:500;color:var(--ink-3)}
+.fld input,.fld select,.fld textarea{width:100%;height:46px;padding:0 12px;border:1.5px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink);font:500 16px var(--font)}
+.fld textarea{height:84px;padding:10px 12px;resize:vertical}
+.fld input:focus,.fld select:focus,.fld textarea:focus{outline:0;border-color:var(--sign);box-shadow:0 0 0 3px rgba(20,82,168,.18)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.picks{display:flex;flex-wrap:wrap;gap:8px}
+.pick{position:relative}
+.pick input{position:absolute;opacity:0;inset:0;margin:0;cursor:pointer}
+.pick span{display:inline-flex;align-items:center;gap:6px;height:38px;padding:0 14px;border:1.5px solid var(--line);border-radius:999px;font-weight:600;font-size:14px;color:var(--ink-2)}
+.pick input:checked+span{background:var(--ink);border-color:var(--ink);color:var(--panel)}
+.pick input:focus-visible+span{outline:3px solid var(--lane);outline-offset:2px}
+.hint{margin:0;font-size:13px;color:var(--ink-3)}
+.hp{position:absolute;left:-9999px}
+.form .actions{margin:4px 0 0}
+
+/* Toast + placing bar */
+.toast{position:fixed;z-index:900;left:50%;bottom:calc(var(--peek) + 18px);transform:translate(-50%,20px);opacity:0;pointer-events:none;max-width:min(92vw,420px);padding:12px 16px;border-radius:12px;background:var(--plate-ink);color:#fff;font-weight:600;font-size:14.5px;box-shadow:var(--shadow-s);transition:opacity .2s,transform .2s}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+.placing{position:fixed;z-index:800;left:12px;right:12px;bottom:calc(16px + env(safe-area-inset-bottom));display:grid;gap:10px;padding:14px;border-radius:16px;background:var(--panel);box-shadow:var(--shadow-s)}
+.placing p{margin:0;font-weight:600}
+.placing .actions{margin:0}
+body.placing-on .sheet,body.placing-on .fabs{visibility:hidden}
+
+/* Desktop: sheet becomes a left column */
+@media (min-width:920px){
+  :root{--peek:0px}
+  .top{right:auto;width:440px;padding:16px 16px 0}
+  .signs{display:grid;grid-template-columns:repeat(5,1fr);overflow:visible;padding-bottom:0}
+  .sign{flex-direction:column;height:auto;gap:6px;padding:8px 4px 8px;font-size:13.5px}
+  .sign .lbl,.sign[aria-selected=true] .lbl{max-width:none;padding:0}
+  .sheet{left:16px;right:auto;top:auto;bottom:16px;width:408px;height:calc(100dvh - 186px);border-radius:20px;transform:none!important;box-shadow:var(--shadow-s)}
+  .handle{display:none}
+  .sheet.half .sh-body{padding-bottom:24px}
+  .sh-body{padding-top:14px}
+  .fabs{bottom:24px;right:16px}
+  body.sheet-up .fabs{opacity:1;pointer-events:auto}
+  .leaflet-bottom{bottom:0}
+  .leaflet-control-zoom{display:block}
+  .toast{left:calc(50% + 220px);bottom:28px}
+  .lang{position:fixed;top:16px;right:56px}
+  .placing{left:auto;right:80px;bottom:24px;width:380px}
+  body.placing-on .sheet{visibility:visible}
+}
+</style>
+</head>
+<body>
+<div id="map" role="application" aria-label="Map"></div>
+
+<header class="top">
+  <div class="bar">
+    <a class="brand" href="#" id="brand" aria-label="Tienvarsi">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.4 21.2 10.6 2.8M17.6 21.2 13.4 2.8" fill="none" stroke="#fff" stroke-width="2.3" stroke-linecap="round"/><path d="M12 19.6v-2.8M12 13.6v-2.2M12 8.4V7.2" fill="none" stroke="#FFC93C" stroke-width="2" stroke-linecap="round"/></svg>
+      <span>Tienvarsi</span>
+    </a>
+    <form class="search" id="searchForm" role="search" autocomplete="off">
+      <svg class="i" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></svg>
+      <label class="sr" for="q" data-i18n="search_ph"></label>
+      <input id="q" type="search" enterkeyhint="search" data-i18n-ph="search_ph">
+      <ul class="results" id="results" hidden></ul>
+    </form>
+    <div class="lang" role="group" data-i18n-aria="lang">
+      <button type="button" data-lang="fi">FI</button><button type="button" data-lang="sv">SV</button><button type="button" data-lang="en">EN</button>
+    </div>
+  </div>
+  <nav class="signs" id="signs" role="tablist"></nav>
+</header>
+
+<div class="fabs">
+  <button class="fab" id="locateBtn" type="button" data-i18n-aria="locate"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="6.5"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3"/></svg></button>
+  <button class="fab" id="offersBtn" type="button" data-i18n-aria="offers"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 12.4V4.6a1.1 1.1 0 0 1 1.1-1.1h7.8a1.1 1.1 0 0 1 .8.3l7.6 7.6a1.1 1.1 0 0 1 0 1.6l-7.8 7.8a1.1 1.1 0 0 1-1.6 0l-7.6-7.6a1.1 1.1 0 0 1-.3-.8z"/><circle cx="8.2" cy="8.2" r="1.5"/></svg></button>
+  <button class="fab" id="aboutBtn" type="button" data-i18n-aria="about"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.6v.1"/></svg></button>
+  <button class="fab add" id="addBtn" type="button" data-i18n-aria="add_place"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+</div>
+
+<section class="sheet peek" id="sheet">
+  <button class="handle" id="handle" type="button" aria-label="Expand"><span></span></button>
+  <div class="sh-body" id="sheetBody"></div>
+</section>
+
+<div class="placing" id="placing" hidden>
+  <p data-i18n="tap_map"></p>
+  <div class="actions"><button class="btn primary" id="useSpot" type="button" disabled data-i18n="use_spot"></button><button class="btn" id="cancelPlacing" type="button" data-i18n="cancel"></button></div>
+</div>
+<div class="toast" id="toast" role="status"></div>
+
+<noscript><p style="position:fixed;inset:auto 0 0 0;padding:16px;background:#fff;z-index:9999">Tienvarsi needs JavaScript to show the map.</p></noscript>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script src="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js"></script>
+<script src="https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.1.4/leaflet-maplibre-gl.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.js"></script>
+<script>
+(() => {
+'use strict';
+
+/* ------------------------------------------------------------------
+   SETTINGS. Paste your Supabase project URL and publishable key here.
+   Leave them empty to run in demo mode (reports stay on this device).
+------------------------------------------------------------------- */
+const CONFIG = {
+  SUPABASE_URL: '',   // e.g. 'https://abcdefgh.supabase.co'
+  SUPABASE_KEY: '',   // the publishable key 'sb_publishable_...' (or the legacy anon key)
+  STYLE_URL: 'https://tiles.openfreemap.org/styles/positron',
+  OVERPASS: [
+    'https://overpass-api.de/api/interpreter',
+    'https://overpass.kumi.systems/api/interpreter',
+    'https://overpass.private.coffee/api/interpreter'
+  ],
+  NOMINATIM: 'https://nominatim.openstreetmap.org/search',
+  HEL_WFS: 'https://kartta.hel.fi/ws/geoserver/avoindata/wfs',
+  START: { lat: 60.1699, lon: 24.9384, z: 13 },
+  REPORT_DAYS: 120
+};
+
+/* ---------------- Translations ---------------- */
+const T = {
+en:{
+app_tag:'Fuel, charging, parking, car washes and drive-throughs across Finland',
+cat_fuel:'Fuel',cat_ev:'Charging',cat_parking:'Parking',cat_wash:'Car wash',cat_drive:'Drive-through',
+search_ph:'Address, place or coordinates',locate:'Show my location',add_place:'Add a missing place',offers:'Offers',about:'About and data',lang:'Language',expand:'Expand panel',
+sort_near:'Nearest',sort_cheap:'Cheapest',
+zoom_fuel:'Zoom in to see fuel stations.',zoom_ev:'Zoom in to see chargers.',zoom_parking:'Zoom in to see parking.',zoom_wash:'Zoom in to see car washes.',zoom_drive:'Zoom in to see drive-throughs.',
+loading:'Loading places…',load_fail:'Couldn’t load places for this area.',retry:'Try again',
+none_here:'Nothing mapped here yet. Know a place? Add it with +.',none_filter:'No places here match this filter.',
+no_price:'No recent price',cheapest:'Cheapest nearby',ft_hvo:'Renewable diesel',ft_biogas:'Biogas',
+report:'Report',report_prices:'Report prices',report_update:'Report an update',save:'Save report',saving:'Saving…',cancel:'Cancel',back:'Back',close:'Close',
+note:'Note',optional:'optional',note_ph:'Anything other drivers should know',public:'Reports are public. Don’t include personal details.',
+community:'Reports from drivers',no_reports:'No reports yet. Be the first to add one.',still_right:'Still right',wrong:'Wrong',voted:'Thanks, vote saved.',already:'You already voted on this.',reported:'Reported {t}',
+directions:'Directions',open_osm:'View in OpenStreetMap',fix_osm:'Map details wrong? Fix them in OpenStreetMap.',
+hours:'Opening hours',address:'Address',operator:'Operator',network:'Network',connectors:'Connectors',max_power:'Max power',capacity:'Spaces',access:'Access',customers:'Customers only',park_ride:'Park and ride',ptype:'Type',surface:'Open-air',multi:'Multi-storey',underground:'Underground',fuels:'Fuels',
+price_kwh:'Price €/kWh',price_min:'Price €/min',start_fee:'Start fee €',max_kw:'Max power kW',status:'Status',st_working:'Working',st_broken:'Out of order',operator_ph:'e.g. K-Lataus',
+fee:'Cost',fee_free:'Free',fee_paid:'Paid',fee_disc:'Free with parking disc',fee_disc_s:'Parking disc',fee_cond:'Outside no-parking hours',fee_unknown:'Cost unknown',
+time_limit:'Time limit',price_h:'Price €/hour',max_h:'Time limit in hours',
+disc_set:'Set your disc to',disc_arrived:'Arriving now at {t}',disc_leave:'Move the car by {t}',disc_rule:'Round up to the next full or half hour after you arrive, and show the time clearly behind the windscreen. A disc or a handwritten note both work.',check_signs:'Always check the signs on site.',
+wash_types:'Wash types',w_auto:'Automatic',w_touchless:'Touchless',w_self:'Self-service',w_hand:'Hand wash',wash_price:'Cheapest wash €',benefit:'Benefits or offers',benefit_ph:'e.g. 3 washes for the price of 2',
+drive_yes:'Has a drive-through',drive_unk_s:'Not confirmed',just_now:'just now',drive_no:'No drive-through',drive_unknown:'Drive-through not confirmed',confirmed_only:'Confirmed only',all:'All',
+place_name:'Place name',category:'Category',user_added:'Added by drivers',tap_map:'Tap the map where the place is. Drag the pin to fine-tune.',use_spot:'Use this spot',new_place:'New place',
+chain_offers:'Chain offers',checked:'Checked {d}',source:'Source',add_offer:'Add an offer',company:'Company',offer_title:'Offer',offer_detail:'Details',valid_until:'Valid until',link:'Link',
+user_offers:'Offers from drivers',offers_intro:'Loyalty deals from the big chains, checked against each company’s own site. Amounts change, so open the source before you rely on one.',no_user_offers:'No offers from drivers yet.',
+demo:'Demo mode: reports are saved on this device only until the database is connected.',
+saved:'Report saved. Thanks!',offer_saved:'Offer saved. Thanks!',err_save:'Couldn’t save. Check your connection and try again.',err_rate:'Too many reports in a short time. Wait a few minutes and try again.',
+err_price:'Enter at least one price.',err_range:'{f} looks off. Check the number.',err_name:'Enter the place name.',err_offer:'Enter the company and the offer.',err_url:'Links must start with https://',err_empty:'Fill in at least one detail.',
+geo_denied:'Location is off. Allow location for this site, or search for an address.',searching:'Searching…',search_none:'No match. Try a street, a town or coordinates like 60.17, 24.94.',
+teboil:'Teboil closed its stations in Finland in November 2025. This station may be closed or under a new brand.',shell:'St1 began rebranding Shell stations in Finland as St1 in 2025, so this station may now carry the St1 name.',
+hel_src:'City of Helsinki street parking data',hel_fail:'Helsinki street parking data couldn’t load. Places from OpenStreetMap still show.',hel_hours:'Restriction hours',hel_hours_note:'Times in brackets apply on Saturdays.',hel_spaces:'Approx. spaces',hel_updated:'Updated by the city {d}',
+hel_2:'Free long-term parking',hel_3:'Paid, max 1 hour',hel_4:'Paid, max 2 hours',hel_5:'Paid, max 4 hours',hel_6:'Paid without a resident or business permit',hel_7:'Paid, max 1 hour without a permit',hel_8:'Free short-term parking with a disc',hel_9:'Allowed outside no-parking hours',hel_10:'Paid, zone price',hel_x:'Street parking',
+inva:'Accessible parking',evp:'EV parking',
+unnamed_fuel:'Fuel station',unnamed_ev:'Charging station',unnamed_parking:'Parking',unnamed_wash:'Car wash',unnamed_drive:'Drive-through',
+about_lead:'Tienvarsi gathers fuel stations, chargers, parking, car washes and drive-throughs from OpenStreetMap. Prices and updates come from drivers, so always check on site.',
+about_prices:'Fuel and charging prices come only from reports on this site. Nothing is copied from Tankille or other apps.',about_sources:'Data sources',
+src_map:'Map: OpenFreeMap, OpenMapTiles and © OpenStreetMap contributors',src_places:'Places: OpenStreetMap via the Overpass API (ODbL)',src_hel:'Helsinki street parking: City of Helsinki open data (CC BY 4.0)',src_search:'Address search: Nominatim',src_offers:'Offers: each company’s own website, on the date shown',
+about_mod:'Reports are anonymous. A report that several drivers mark as wrong stops counting.'
+},
+fi:{
+app_tag:'Polttoaine, lataus, pysäköinti, autopesut ja drive-init koko Suomessa',
+cat_fuel:'Polttoaine',cat_ev:'Lataus',cat_parking:'Pysäköinti',cat_wash:'Autopesu',cat_drive:'Drive-in',
+search_ph:'Osoite, paikka tai koordinaatit',locate:'Näytä sijaintini',add_place:'Lisää puuttuva paikka',offers:'Edut',about:'Tietoa palvelusta',lang:'Kieli',expand:'Laajenna paneeli',
+sort_near:'Lähimmät',sort_cheap:'Edullisimmat',
+zoom_fuel:'Lähennä karttaa nähdäksesi huoltoasemat.',zoom_ev:'Lähennä karttaa nähdäksesi latauspisteet.',zoom_parking:'Lähennä karttaa nähdäksesi pysäköintipaikat.',zoom_wash:'Lähennä karttaa nähdäksesi autopesut.',zoom_drive:'Lähennä karttaa nähdäksesi drive-init.',
+loading:'Ladataan paikkoja…',load_fail:'Alueen paikkoja ei saatu ladattua.',retry:'Yritä uudelleen',
+none_here:'Täältä ei ole vielä merkitty paikkoja. Tiedätkö jonkin? Lisää se +-painikkeella.',none_filter:'Tällä alueella ei ole suodatinta vastaavia paikkoja.',
+no_price:'Ei tuoretta hintaa',cheapest:'Edullisin lähellä',ft_hvo:'Uusiutuva diesel',ft_biogas:'Biokaasu',
+report:'Ilmoita',report_prices:'Ilmoita hinnat',report_update:'Ilmoita päivitys',save:'Tallenna ilmoitus',saving:'Tallennetaan…',cancel:'Peruuta',back:'Takaisin',close:'Sulje',
+note:'Lisätieto',optional:'valinnainen',note_ph:'Mitä muiden autoilijoiden kannattaa tietää',public:'Ilmoitukset ovat julkisia. Älä lisää henkilötietoja.',
+community:'Autoilijoiden ilmoitukset',no_reports:'Ei vielä ilmoituksia. Lisää ensimmäinen.',still_right:'Pitää paikkansa',wrong:'Väärin',voted:'Kiitos, ääni tallennettu.',already:'Olet jo äänestänyt tätä.',reported:'Ilmoitettu {t}',
+directions:'Reittiohjeet',open_osm:'Näytä OpenStreetMapissa',fix_osm:'Onko kartan tiedoissa virhe? Korjaa ne OpenStreetMapissa.',
+hours:'Aukioloajat',address:'Osoite',operator:'Operaattori',network:'Verkosto',connectors:'Liittimet',max_power:'Maksimiteho',capacity:'Paikkoja',access:'Käyttö',customers:'Vain asiakkaille',park_ride:'Liityntäpysäköinti',ptype:'Tyyppi',surface:'Ulkopaikoitus',multi:'Pysäköintitalo',underground:'Maanalainen',fuels:'Polttoaineet',
+price_kwh:'Hinta €/kWh',price_min:'Hinta €/min',start_fee:'Aloitusmaksu €',max_kw:'Maksimiteho kW',status:'Tila',st_working:'Toimii',st_broken:'Epäkunnossa',operator_ph:'esim. K-Lataus',
+fee:'Hinta',fee_free:'Maksuton',fee_paid:'Maksullinen',fee_disc:'Maksuton pysäköintikiekolla',fee_disc_s:'Pysäköintikiekko',fee_cond:'Pysäköintikieltoajan ulkopuolella',fee_unknown:'Hinta ei tiedossa',
+time_limit:'Aikarajoitus',price_h:'Hinta €/tunti',max_h:'Aikaraja tunteina',
+disc_set:'Aseta kiekko aikaan',disc_arrived:'Saavut nyt klo {t}',disc_leave:'Siirrä auto viimeistään klo {t}',disc_rule:'Pyöristä saapumisaika seuraavaan täyteen tai puoleen tuntiin ja näytä se selvästi tuulilasin takana. Kiekko tai käsin kirjoitettu lappu käy kumpikin.',check_signs:'Tarkista aina paikan liikennemerkit.',
+wash_types:'Pesutavat',w_auto:'Automaattipesu',w_touchless:'Kosketukseton',w_self:'Itsepalvelupesu',w_hand:'Käsinpesu',wash_price:'Edullisin pesu €',benefit:'Edut tai tarjoukset',benefit_ph:'esim. 3 pesua 2:n hinnalla',
+drive_yes:'Drive-in käytössä',drive_unk_s:'Ei vahvistettu',just_now:'juuri nyt',drive_no:'Ei drive-iniä',drive_unknown:'Drive-iniä ei ole vahvistettu',confirmed_only:'Vain vahvistetut',all:'Kaikki',
+place_name:'Paikan nimi',category:'Kategoria',user_added:'Autoilijan lisäämä',tap_map:'Napauta karttaa paikan kohdalla. Hienosäädä vetämällä neulaa.',use_spot:'Käytä tätä kohtaa',new_place:'Uusi paikka',
+chain_offers:'Ketjujen edut',checked:'Tarkistettu {d}',source:'Lähde',add_offer:'Lisää etu',company:'Yritys',offer_title:'Etu',offer_detail:'Tiedot',valid_until:'Voimassa asti',link:'Linkki',
+user_offers:'Autoilijoiden ilmoittamat edut',offers_intro:'Suurten ketjujen kanta-asiakasedut, tarkistettu yritysten omilta sivuilta. Summat muuttuvat, joten avaa lähde ennen kuin luotat etuun.',no_user_offers:'Autoilijat eivät ole vielä lisänneet etuja.',
+demo:'Esittelytila: ilmoitukset tallentuvat vain tälle laitteelle, kunnes tietokanta on yhdistetty.',
+saved:'Ilmoitus tallennettu. Kiitos!',offer_saved:'Etu tallennettu. Kiitos!',err_save:'Tallennus epäonnistui. Tarkista yhteys ja yritä uudelleen.',err_rate:'Liian monta ilmoitusta lyhyessä ajassa. Odota muutama minuutti ja yritä uudelleen.',
+err_price:'Anna vähintään yksi hinta.',err_range:'{f} näyttää virheelliseltä. Tarkista luku.',err_name:'Anna paikan nimi.',err_offer:'Anna yritys ja etu.',err_url:'Linkin pitää alkaa https://',err_empty:'Täytä vähintään yksi tieto.',
+geo_denied:'Sijainti ei ole käytössä. Salli sijainti tälle sivustolle tai hae osoitteella.',searching:'Haetaan…',search_none:'Ei osumia. Kokeile katua, kaupunkia tai koordinaatteja, esim. 60.17, 24.94.',
+teboil:'Teboil sulki asemansa Suomessa marraskuussa 2025. Asema voi olla suljettu tai toimia uudella nimellä.',shell:'St1 alkoi vuonna 2025 muuttaa Suomen Shell-asemia St1-asemiksi, joten asema voi nyt toimia St1-nimellä.',
+hel_src:'Helsingin kaupungin katupysäköintitiedot',hel_fail:'Helsingin katupysäköintitietoja ei saatu ladattua. OpenStreetMapin paikat näkyvät silti.',hel_hours:'Rajoitusajat',hel_hours_note:'Suluissa olevat ajat koskevat lauantaita.',hel_spaces:'Paikkoja noin',hel_updated:'Kaupunki päivittänyt {d}',
+hel_2:'Maksuton pitkäaikainen pysäköinti',hel_3:'Maksullinen, enintään 1 tunti',hel_4:'Maksullinen, enintään 2 tuntia',hel_5:'Maksullinen, enintään 4 tuntia',hel_6:'Maksullinen ilman asukas- tai yritystunnusta',hel_7:'Maksullinen, enintään 1 tunti ilman tunnusta',hel_8:'Maksuton lyhytaikainen pysäköinti kiekolla',hel_9:'Sallittu pysäköintikieltoajan ulkopuolella',hel_10:'Maksullinen, vyöhykehinta',hel_x:'Katupysäköinti',
+inva:'Invapaikka',evp:'Sähköautopaikka',
+unnamed_fuel:'Huoltoasema',unnamed_ev:'Latausasema',unnamed_parking:'Pysäköintialue',unnamed_wash:'Autopesu',unnamed_drive:'Drive-in',
+about_lead:'Tienvarsi kokoaa OpenStreetMapista huoltoasemat, latauspisteet, pysäköintipaikat, autopesut ja drive-init. Hinnat ja päivitykset tulevat autoilijoilta, joten tarkista tiedot aina paikan päällä.',
+about_prices:'Polttoaine- ja lataushinnat tulevat vain tämän sivuston ilmoituksista. Mitään ei kopioida Tankillesta tai muista sovelluksista.',about_sources:'Tietolähteet',
+src_map:'Kartta: OpenFreeMap, OpenMapTiles ja © OpenStreetMapin tekijät',src_places:'Paikat: OpenStreetMap Overpass-rajapinnan kautta (ODbL)',src_hel:'Helsingin katupysäköinti: Helsingin kaupungin avoin data (CC BY 4.0)',src_search:'Osoitehaku: Nominatim',src_offers:'Edut: yritysten omat verkkosivut, tarkistuspäivä näkyy edun kohdalla',
+about_mod:'Ilmoitukset ovat nimettömiä. Jos useampi autoilija merkitsee ilmoituksen vääräksi, sitä ei enää huomioida.'
+},
+sv:{
+app_tag:'Bränsle, laddning, parkering, biltvätt och drive-in i hela Finland',
+cat_fuel:'Bränsle',cat_ev:'Laddning',cat_parking:'Parkering',cat_wash:'Biltvätt',cat_drive:'Drive-in',
+search_ph:'Adress, plats eller koordinater',locate:'Visa min position',add_place:'Lägg till en saknad plats',offers:'Förmåner',about:'Om tjänsten',lang:'Språk',expand:'Expandera panelen',
+sort_near:'Närmast',sort_cheap:'Billigast',
+zoom_fuel:'Zooma in för att se bensinstationer.',zoom_ev:'Zooma in för att se laddare.',zoom_parking:'Zooma in för att se parkering.',zoom_wash:'Zooma in för att se biltvättar.',zoom_drive:'Zooma in för att se drive-in-ställen.',
+loading:'Laddar platser…',load_fail:'Platserna i området kunde inte laddas.',retry:'Försök igen',
+none_here:'Inget är kartlagt här ännu. Känner du till en plats? Lägg till den med +.',none_filter:'Inga platser här matchar filtret.',
+no_price:'Inget aktuellt pris',cheapest:'Billigast i närheten',ft_hvo:'Förnybar diesel',ft_biogas:'Biogas',
+report:'Rapportera',report_prices:'Rapportera priser',report_update:'Rapportera en uppdatering',save:'Spara rapporten',saving:'Sparar…',cancel:'Avbryt',back:'Tillbaka',close:'Stäng',
+note:'Anteckning',optional:'valfri',note_ph:'Något andra bilister bör veta',public:'Rapporterna är offentliga. Ange inga personuppgifter.',
+community:'Rapporter från bilister',no_reports:'Inga rapporter ännu. Var först med att lägga till en.',still_right:'Stämmer',wrong:'Fel',voted:'Tack, rösten sparades.',already:'Du har redan röstat på den här.',reported:'Rapporterad {t}',
+directions:'Vägbeskrivning',open_osm:'Visa i OpenStreetMap',fix_osm:'Fel i kartuppgifterna? Rätta dem i OpenStreetMap.',
+hours:'Öppettider',address:'Adress',operator:'Operatör',network:'Nätverk',connectors:'Kontakter',max_power:'Maxeffekt',capacity:'Platser',access:'Tillträde',customers:'Endast kunder',park_ride:'Infartsparkering',ptype:'Typ',surface:'Utomhus',multi:'Parkeringshus',underground:'Underjordisk',fuels:'Bränslen',
+price_kwh:'Pris €/kWh',price_min:'Pris €/min',start_fee:'Startavgift €',max_kw:'Maxeffekt kW',status:'Status',st_working:'Fungerar',st_broken:'Ur funktion',operator_ph:'t.ex. K-Lataus',
+fee:'Kostnad',fee_free:'Gratis',fee_paid:'Avgiftsbelagd',fee_disc:'Gratis med parkeringsskiva',fee_disc_s:'Parkeringsskiva',fee_cond:'Utanför tider med parkeringsförbud',fee_unknown:'Kostnad okänd',
+time_limit:'Tidsgräns',price_h:'Pris €/timme',max_h:'Tidsgräns i timmar',
+disc_set:'Ställ skivan på',disc_arrived:'Du anländer nu kl. {t}',disc_leave:'Flytta bilen senast kl. {t}',disc_rule:'Avrunda uppåt till nästa hel- eller halvtimme efter ankomsten och visa tiden tydligt bakom vindrutan. Både skiva och handskriven lapp duger.',check_signs:'Kontrollera alltid skyltarna på plats.',
+wash_types:'Tvättyper',w_auto:'Automattvätt',w_touchless:'Beröringsfri',w_self:'Självtvätt',w_hand:'Handtvätt',wash_price:'Billigaste tvätt €',benefit:'Förmåner eller erbjudanden',benefit_ph:'t.ex. 3 tvättar till priset av 2',
+drive_yes:'Har drive-in',drive_unk_s:'Ej bekräftad',just_now:'nyss',drive_no:'Ingen drive-in',drive_unknown:'Drive-in inte bekräftad',confirmed_only:'Endast bekräftade',all:'Alla',
+place_name:'Platsens namn',category:'Kategori',user_added:'Tillagd av bilister',tap_map:'Tryck på kartan där platsen finns. Dra nålen för att finjustera.',use_spot:'Använd den här platsen',new_place:'Ny plats',
+chain_offers:'Kedjornas förmåner',checked:'Kontrollerad {d}',source:'Källa',add_offer:'Lägg till en förmån',company:'Företag',offer_title:'Förmån',offer_detail:'Detaljer',valid_until:'Giltig till',link:'Länk',
+user_offers:'Förmåner från bilister',offers_intro:'Stamkundsförmåner från de stora kedjorna, kontrollerade mot företagens egna webbplatser. Beloppen ändras, så öppna källan innan du räknar med en förmån.',no_user_offers:'Inga förmåner från bilister ännu.',
+demo:'Demoläge: rapporterna sparas bara på den här enheten tills databasen är ansluten.',
+saved:'Rapporten sparades. Tack!',offer_saved:'Förmånen sparades. Tack!',err_save:'Det gick inte att spara. Kontrollera anslutningen och försök igen.',err_rate:'För många rapporter på kort tid. Vänta några minuter och försök igen.',
+err_price:'Ange minst ett pris.',err_range:'{f} ser fel ut. Kontrollera siffran.',err_name:'Ange platsens namn.',err_offer:'Ange företaget och förmånen.',err_url:'Länken måste börja med https://',err_empty:'Fyll i minst en uppgift.',
+geo_denied:'Platstjänsten är avstängd. Tillåt plats för webbplatsen eller sök efter en adress.',searching:'Söker…',search_none:'Ingen träff. Prova en gata, en ort eller koordinater som 60.17, 24.94.',
+teboil:'Teboil stängde sina stationer i Finland i november 2025. Stationen kan vara stängd eller ha ett nytt varumärke.',shell:'St1 började 2025 byta namn på Shell-stationerna i Finland till St1, så stationen kan nu heta St1.',
+hel_src:'Helsingfors stads data om gatuparkering',hel_fail:'Helsingfors data om gatuparkering kunde inte laddas. Platser från OpenStreetMap visas ändå.',hel_hours:'Begränsningstider',hel_hours_note:'Tider inom parentes gäller lördagar.',hel_spaces:'Cirka platser',hel_updated:'Uppdaterad av staden {d}',
+hel_2:'Gratis långtidsparkering',hel_3:'Avgift, högst 1 timme',hel_4:'Avgift, högst 2 timmar',hel_5:'Avgift, högst 4 timmar',hel_6:'Avgift utan boende- eller företagstillstånd',hel_7:'Avgift, högst 1 timme utan tillstånd',hel_8:'Gratis korttidsparkering med skiva',hel_9:'Tillåten utanför tider med parkeringsförbud',hel_10:'Avgift, zonpris',hel_x:'Gatuparkering',
+inva:'Parkering för rörelsehindrade',evp:'Elbilsplats',
+unnamed_fuel:'Bensinstation',unnamed_ev:'Laddstation',unnamed_parking:'Parkering',unnamed_wash:'Biltvätt',unnamed_drive:'Drive-in',
+about_lead:'Tienvarsi samlar bensinstationer, laddare, parkering, biltvättar och drive-in-ställen från OpenStreetMap. Priser och uppdateringar kommer från bilister, så kontrollera alltid på plats.',
+about_prices:'Bränsle- och laddpriser kommer bara från rapporter på den här webbplatsen. Inget kopieras från Tankille eller andra appar.',about_sources:'Datakällor',
+src_map:'Karta: OpenFreeMap, OpenMapTiles och © OpenStreetMaps bidragsgivare',src_places:'Platser: OpenStreetMap via Overpass API (ODbL)',src_hel:'Gatuparkering i Helsingfors: Helsingfors stads öppna data (CC BY 4.0)',src_search:'Adressökning: Nominatim',src_offers:'Förmåner: företagens egna webbplatser, på det datum som anges',
+about_mod:'Rapporterna är anonyma. En rapport som flera bilister markerar som fel räknas inte längre.'
+}
+};
+const LOCALE = { en:'en-GB', fi:'fi-FI', sv:'sv-FI' };
+
+/* ---------------- Verified chain offers (checked 12 Oct 2026) ---------------- */
+const SEED = [
+{id:'abc-fuel',brand:'abc',cats:['fuel'],checked:'2026-10-12',url:'https://s-etukortti.fi/en/support/bonus-campaigns',
+ title:{en:'S-Bonus on fuel: up to 5 c/l',fi:'Polttoainebonus: jopa 5 snt/l',sv:'Bränslebonus: upp till 5 c/l'},
+ body:{en:'S Group co-op members earn a fuel bonus at ABC instead of the regular percentage Bonus. It follows your household’s monthly Bonus level (a 3% level gives 3 c/l), up to 5 c/l, and is paid with your monthly Bonus.',
+  fi:'S-ryhmän omistaja-asiakkaat saavat ABC:llä polttoainebonusta tavallisen prosenttibonuksen sijaan. Se seuraa talouden kuukauden bonustasoa (3 %:n taso antaa 3 snt/l), enintään 5 snt/l, ja maksetaan kuukausibonuksen mukana.',
+  sv:'S-gruppens ägarkunder får bränslebonus på ABC i stället för den vanliga procentbonusen. Den följer hushållets bonusnivå för månaden (nivån 3 % ger 3 c/l), högst 5 c/l, och betalas ut med månadsbonusen.'}},
+{id:'abc-ev',brand:'abc',cats:['ev'],checked:'2026-10-12',url:'https://www.abcasemat.fi/en-GB/usein-kysytyt-kysymykset/sahkoauton-lataus',
+ title:{en:'ABC charging: pay per kWh, Bonus for members',fi:'ABC-lataus: hinta per kWh, bonusta omistajille',sv:'ABC-laddning: pris per kWh, bonus för ägarkunder'},
+ body:{en:'No monthly fee. The regional co-op sets the price, shown in the ABC-mobiili app before you start. Co-op members who sign in to the app earn Bonus automatically, and paying with S-Etukortti adds a payment benefit. Some stations add a time-based congestion charge after 45 to 120 minutes.',
+  fi:'Ei kuukausimaksua. Alueosuuskauppa päättää hinnan, ja se näkyy ABC-mobiilissa ennen latauksen aloitusta. Sovellukseen tunnistautuneet omistaja-asiakkaat saavat bonuksen automaattisesti, ja S-Etukortilla maksaessa saa lisäksi maksutapaedun. Osalla asemista peritään aikaperusteinen ruuhkamaksu 45–120 minuutin jälkeen.',
+  sv:'Ingen månadsavgift. Regionandelslaget sätter priset, som visas i ABC-mobiili innan laddningen startar. Ägarkunder som loggar in i appen får bonus automatiskt, och betalning med S-Etukortti ger en betalsättsförmån. Vissa stationer tar ut en tidsbaserad trängselavgift efter 45–120 minuter.'}},
+{id:'abc-wash',brand:'abc',cats:['wash'],checked:'2026-10-12',url:'https://www.abcasemat.fi/en-GB/autopesu/hinta-ja-bonus',
+ title:{en:'ABC car wash: Bonus plus a 0.5% card benefit',fi:'ABC-autopesu: bonus ja 0,5 %:n maksutapaetu',sv:'ABC-biltvätt: bonus och 0,5 % betalsättsförmån'},
+ body:{en:'Co-op members earn Bonus on washes, and paying with an S-Etukortti Visa adds a 0.5% payment benefit. Multi-wash and monthly passes lower the price per wash. Prices and the queue are shown in the ABC-mobiili app.',
+  fi:'Omistaja-asiakkaat saavat pesuista bonusta, ja S-Etukortti Visalla maksaessa saa lisäksi 0,5 %:n maksutapaedun. Sarja- ja kuukausipesut laskevat pesukohtaista hintaa. Hinnat ja jonotilanne näkyvät ABC-mobiilissa.',
+  sv:'Ägarkunder får bonus på tvättar, och betalning med S-Etukortti Visa ger dessutom 0,5 % betalsättsförmån. Serie- och månadstvättar sänker priset per tvätt. Priser och kö visas i ABC-mobiili.'}},
+{id:'st1-way',brand:'st1',cats:['fuel','wash'],checked:'2026-10-12',url:'https://st1.fi/yksityisille/kanta-asiakkuus',
+ title:{en:'St1 Way app: 2 c/l off fuel',fi:'St1 Way -sovellus: 2 snt/l alennus',sv:'St1 Way-appen: 2 c/l rabatt'},
+ body:{en:'A fuel discount of 2 c/l at about 400 St1 stations in Finland, plus weekly app offers and car wash offers.',
+  fi:'Tankkausalennus 2 snt/l noin 400 St1-asemalla Suomessa sekä viikoittain vaihtuvia sovellusetuja ja autopesuetuja.',
+  sv:'Bränslerabatt på 2 c/l på cirka 400 St1-stationer i Finland, plus veckovisa erbjudanden i appen och biltvättserbjudanden.'}},
+{id:'st1-card',brand:'st1',cats:['fuel','wash'],checked:'2026-10-12',url:'https://st1.fi/yksityisille/kanta-asiakkuus',
+ title:{en:'St1 cash discount card',fi:'St1 Käteisalennuskortti',sv:'St1:s kontantrabattkort'},
+ body:{en:'A permanent fuel discount at about 400 St1 stations, monthly HelmiSimpukka food offers and car wash offers. St1 doesn’t publish the discount amount on its page.',
+  fi:'Pysyvä tankkausalennus noin 400 St1-asemalla, kuukausittain vaihtuvia HelmiSimpukan herkkuetuja ja autopesuetuja. St1 ei kerro alennuksen suuruutta sivullaan.',
+  sv:'En permanent bränslerabatt på cirka 400 St1-stationer, månatliga materbjudanden från HelmiSimpukka och biltvättserbjudanden. St1 anger inte rabattens storlek på sin sida.'}},
+{id:'st1-ev',brand:'st1',cats:['ev'],checked:'2026-10-12',url:'https://st1.fi/asemahaku',
+ title:{en:'St1 Charge: prices by station',fi:'St1 Charge: asemakohtaiset hinnat',sv:'St1 Charge: priser per station'},
+ body:{en:'High-power charging with quick payment. Prices differ by station, so check the St1 station finder before you go.',
+  fi:'Suurteholatausta ja nopea maksaminen. Hinnat vaihtelevat asemittain, joten tarkista ne St1:n asemahausta ennen lähtöä.',
+  sv:'Snabbladdning med smidig betalning. Priserna varierar mellan stationerna, så kolla St1:s stationssök innan du åker.'}},
+{id:'neste-app',brand:'neste',cats:['fuel'],checked:'2026-10-12',url:'https://www.neste.fi/yksityisille/asiakkuus-ja-edut/neste-appi',
+ title:{en:'Neste app: 2 c/l off your first refuel',fi:'Neste-appi: 2 snt/l ensimmäisestä tankkauksesta',sv:'Neste-appen: 2 c/l på första tankningen'},
+ body:{en:'New app users get 2 c/l off their first refuel within two weeks at Neste stations in Finland (not Neste Express). It can’t be combined with other fuel benefits. Membership cards added to the app give member prices, one member benefit per refuel.',
+  fi:'Uudet sovelluksen käyttäjät saavat 2 snt/l alennuksen ensimmäisestä tankkauksesta kahden viikon sisällä Neste-asemilla Suomessa (ei Neste Express). Etua ei voi yhdistää muihin polttoaine-etuihin. Sovellukseen lisätyillä jäsenkorteilla saa jäsenhinnat, yksi jäsenetu tankkausta kohden.',
+  sv:'Nya appanvändare får 2 c/l rabatt på första tankningen inom två veckor på Neste-stationer i Finland (inte Neste Express). Förmånen kan inte kombineras med andra bränsleförmåner. Medlemskort som läggs till i appen ger medlemspris, en medlemsförmån per tankning.'}},
+{id:'neste-plussa',brand:'neste',cats:['fuel','wash'],checked:'2026-10-12',url:'https://www.neste.fi/yksityisille/asiakkuus-ja-edut/plussa',
+ title:{en:'K-Plussa: personal OmaPlussa benefits',fi:'K-Plussa: henkilökohtaiset OmaPlussa-edut',sv:'K-Plussa: personliga OmaPlussa-förmåner'},
+ body:{en:'Refuelling and washes at Neste can earn household-specific OmaPlussa benefits, which may include fuel discounts. Since 1 June 2025, shop, café and car wash purchases at Neste no longer earn Plussa points, and Neste cards don’t earn Plussa benefits.',
+  fi:'Tankkaukset ja pesut Nesteellä voivat kerryttää taloudelle henkilökohtaisia OmaPlussa-etuja, jotka voivat sisältää polttoainealennuksia. 1.6.2025 alkaen Nesteen myymälä-, kahvila- ja autopesuostoista ei ole kertynyt Plussa-pisteitä, eikä Neste-korteilla kerry Plussa-etuja.',
+  sv:'Tankning och tvätt hos Neste kan ge hushållsspecifika OmaPlussa-förmåner, som kan innehålla bränslerabatter. Sedan 1.6.2025 ger köp i butik, kafé och biltvätt hos Neste inte längre Plussa-poäng, och Neste-kort ger inga Plussa-förmåner.'}},
+{id:'neste-wash',brand:'neste',cats:['wash'],checked:'2026-10-12',url:'https://www.neste.fi/yksityisille/asemat/autopesut',
+ title:{en:'Neste Easy Wash: half price at night',fi:'Neste Easy Wash: yöllä puoleen hintaan',sv:'Neste Easy Wash: halva priset på natten'},
+ body:{en:'Open around the clock. Between 21:00 and 06:00, three wash programmes are 50% off. A fixed monthly plan in the Neste app gives unlimited washes, and a queue camera shows the line before you arrive.',
+  fi:'Auki ympäri vuorokauden. Klo 21–06 kolme pesuohjelmaa on 50 % alennuksessa. Neste-appin kiinteällä kuukausimaksulla pesee rajattomasti, ja jonokamerasta näkee jonon jo ennen saapumista.',
+  sv:'Öppet dygnet runt. Mellan 21 och 06 kostar tre tvättprogram 50 % mindre. En fast månadsavgift i Neste-appen ger obegränsat med tvättar, och en kökamera visar kön innan du kommer fram.'}},
+{id:'neste-ev',brand:'neste',cats:['ev'],checked:'2026-10-12',url:'https://www.neste.fi/yksityisille/asiakkuus-ja-edut/neste-appi',
+ title:{en:'Neste MY Renewable Charging',fi:'Neste MY Uusiutuva Lataus',sv:'Neste MY Förnybar laddning'},
+ body:{en:'High-power sites with 600 kW in total and 4 to 8 charging points. The Neste app shows live prices and free spots, and you can pay in the app.',
+  fi:'Suurteholatausasemat, yhteensä 600 kW ja 4–8 latauspistettä. Neste-appi näyttää ajantasaiset hinnat ja vapaat paikat, ja latauksen voi maksaa sovelluksessa.',
+  sv:'Snabbladdningsstationer med totalt 600 kW och 4–8 laddpunkter. Neste-appen visar aktuella priser och lediga platser, och du kan betala i appen.'}},
+{id:'seo-app',brand:'seo',cats:['fuel'],checked:'2026-10-12',url:'https://seo.fi/seonappi',
+ title:{en:'SEONappi: mobile refuelling offers',fi:'SEONappi: mobiilitankkaajan edut',sv:'SEONappi: erbjudanden vid mobiltankning'},
+ body:{en:'Pay at the pump with the free SEONappi app and get offers for mobile refuelling. Seo doesn’t list the amounts on its site, so check the app.',
+  fi:'Maksa tankkaus maksuttomalla SEONapilla ja saat mobiilitankkaajan tarjoukset. Seo ei kerro etujen suuruutta sivuillaan, joten tarkista ne sovelluksesta.',
+  sv:'Betala vid pumpen med den kostnadsfria appen SEONappi och få erbjudanden vid mobiltankning. Seo anger inte beloppen på sin webbplats, så kolla appen.'}},
+{id:'juhlapesu',brand:'juhlapesu',cats:['wash'],checked:'2023-03-14',url:'https://moottori.fi/uutinen/24-7-aukioleva-juhlapesu-ketju-laajenee/',
+ title:{en:'Juhlapesu: 24/7 washes with plate recognition',fi:'Juhlapesu: pesut 24/7 rekisterikilven tunnistuksella',sv:'Juhlapesu: tvätt dygnet runt med skyltigenkänning'},
+ body:{en:'Unmanned automatic washes that recognise your number plate. Monthly subscriptions, including a cheaper night plan, are sold in the Juhlapesu app. Prices have not been rechecked for this list.',
+  fi:'Miehittämättömiä automaattipesuja, jotka tunnistavat rekisterikilven. Kuukausitilauksia, myös edullisempaa yötilausta, myydään Juhlapesun sovelluksessa. Hintoja ei ole tarkistettu uudelleen tähän listaan.',
+  sv:'Obemannade automattvättar som känner igen registreringsskylten. Månadsabonnemang, även ett billigare nattabonnemang, säljs i Juhlapesus app. Priserna har inte kontrollerats på nytt för den här listan.'}}
+];
+const NOTICE_SRC = {
+  teboil:'https://www.verkkouutiset.fi/a/kkv-selvitti-teboilin-lahto-kallisti-polttoaineita-ympari-suomen/',
+  shell:'https://moottori.fi/uutinen/paivan-kuva-jopa-kuulu-ala-tikkurilan-shell-katoaa-muuttuakseen-st1ksi/'
+};
+const BRAND_NAMES = {abc:'ABC',neste:'Neste',st1:'St1',shell:'Shell',teboil:'Teboil',seo:'Seo',juhlapesu:'Juhlapesu'};
+
+/* ---------------- Icons ---------------- */
+const SV = (inner, extra='') => `<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ${extra}>${inner}</svg>`;
+const IC = {
+  fuel:SV('<path d="M5 21V5.5A1.5 1.5 0 0 1 6.5 4h6A1.5 1.5 0 0 1 14 5.5V21M3.5 21h12M7 8.5h5"/><path d="M14 11h1.6a1.4 1.4 0 0 1 1.4 1.4v4.1a1.5 1.5 0 0 0 3 0V9.2L17.6 7"/>'),
+  ev:SV('<path d="M13.5 2.5 5.5 13.5h5.5l-1.5 8 8.5-11.5h-5.6z" fill="currentColor" stroke="none"/>'),
+  parking:SV('<path d="M7.5 21V3.5h5.25a5 5 0 0 1 0 10H7.5" stroke-width="3"/>'),
+  wash:SV('<path d="M4.5 18.5V15l1.6-4.2a1.6 1.6 0 0 1 1.5-1h8.8a1.6 1.6 0 0 1 1.5 1l1.6 4.2v3.5M4.5 18.5h15M4.5 18.5v2M19.5 18.5v2M7.6 15.2h.01M16.4 15.2h.01"/><path d="M8 3v3M12 2.5v3.5M16 3v3"/>'),
+  drive:SV('<path d="M6.5 8.5h11l-1.4 12a1 1 0 0 1-1 .9H8.9a1 1 0 0 1-1-.9zM5.5 8.5h13M12.5 8.5l1.8-5.5"/>'),
+  back:SV('<path d="M14.5 5.5 8 12l6.5 6.5"/>','class="i"'),
+  close:SV('<path d="M6 6l12 12M18 6 6 18"/>','class="i"'),
+  nav:SV('<path d="M12 2.8 20.5 20 12 16.2 3.5 20z" fill="currentColor" stroke="none"/>','class="i"'),
+  pen:SV('<path d="M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4"/>','class="i"'),
+  plus:SV('<path d="M12 5v14M5 12h14"/>','class="i"')
+};
+const CATS = {
+  fuel:{color:'#EE8A00', minZoom:10},
+  ev:{color:'#13A06B', minZoom:11},
+  parking:{color:'#1452A8', minZoom:14},
+  wash:{color:'#0A93B8', minZoom:11},
+  drive:{color:'#B03A7F', minZoom:10}
+};
+const CAT_KEYS = Object.keys(CATS);
+const FEE_COLORS = {free:'#13A06B',disc:'#1452A8',paid:'#7D8896',cond:'#B98900',unknown:'#5E6E80'};
+const FUELS = [
+  {k:'e95',label:'95E10',tag:/^fuel:(octane_95|e10)$/},
+  {k:'e98',label:'98E5',tag:/^fuel:(octane_98|e5)$/},
+  {k:'diesel',label:'Diesel',tag:/^fuel:diesel$/},
+  {k:'hvo',lk:'ft_hvo',tag:/^fuel:(hvo.*|biodiesel)$/i},
+  {k:'e85',label:'E85',tag:/^fuel:e85$/},
+  {k:'biogas',lk:'ft_biogas',tag:/^fuel:(biogas|cng|lng|biomethane)$/i,unit:'kg'}
+];
+const SOCK = {type2:'Type 2',type2_cable:'Type 2 (cable)',type2_combo:'CCS',chademo:'CHAdeMO',tesla_supercharger:'Tesla',tesla_supercharger_ccs:'Tesla CCS',schuko:'Schuko',type1:'Type 1',type1_combo:'CCS1',cee_blue:'CEE'};
+const HEL_SKIP = /sähköpotkulauta|pysäköintikielto|pysäyttämiskielto|kuormaus|polkupyörä|taxi|taksi|^cd$|moottoripyörä/i;
+
+/* ---------------- Small helpers ---------------- */
+const $ = (s, el=document) => el.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const LS = {
+  get(k, d){ try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch(e){ return d; } },
+  set(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} }
+};
+const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : 'x'.repeat(32).replace(/x/g, () => (Math.random()*16|0).toString(16)));
+const CID = LS.get('tv_cid', null) || (() => { const id = uuid(); LS.set('tv_cid', id); return id; })();
+const debounce = (fn, ms) => { let tm; return (...a) => { clearTimeout(tm); tm = setTimeout(() => fn(...a), ms); }; };
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const isDesktop = () => matchMedia('(min-width: 920px)').matches;
+function num(v){ if (v == null || v === '') return null; if (typeof v === 'number') return isFinite(v) ? v : null; const n = parseFloat(String(v).trim().replace(/\s/g,'').replace(',', '.')); return isFinite(n) ? n : null; }
+
+let lang = (() => { const s = LS.get('tv_lang', null); if (T[s]) return s; const n = (navigator.language || 'en').slice(0,2).toLowerCase(); return T[n] ? n : 'en'; })();
+function t(k, v){ let s = T[lang][k] ?? T.en[k] ?? k; if (v) for (const [a,b] of Object.entries(v)) s = s.split('{'+a+'}').join(b); return s; }
+const nf = (d) => new Intl.NumberFormat(LOCALE[lang], {minimumFractionDigits:d, maximumFractionDigits:d});
+const fmtPrice = (v, d=3) => nf(d).format(v);
+const fmtNum = (v, d=0) => nf(d).format(v);
+function fmtH(h){ if (h == null) return ''; if (h < 1) return Math.round(h*60) + ' min'; return fmtNum(h, h % 1 ? 1 : 0) + ' h'; }
+function fmtKm(d){ return d < 1 ? (Math.round(d*100)*10) + ' m' : fmtNum(d, d < 10 ? 1 : 0) + ' km'; }
+function fmtDate(iso){ const d = new Date(iso.length === 10 ? iso + 'T12:00:00' : iso); return d.toLocaleDateString(LOCALE[lang], {day:'numeric', month:'numeric', year:'numeric'}); }
+function fmtClock(d){ return d.toLocaleTimeString(LOCALE[lang], {hour:'2-digit', minute:'2-digit', hour12:false}); }
+function ago(iso){
+  const s = (Date.now() - new Date(iso).getTime())/1000;
+  const rtf = new Intl.RelativeTimeFormat(LOCALE[lang], {numeric:'auto', style:'short'});
+  if (s < 60) return t('just_now');
+  if (s < 3600) return rtf.format(-Math.round(s/60), 'minute');
+  if (s < 86400) return rtf.format(-Math.round(s/3600), 'hour');
+  return rtf.format(-Math.round(s/86400), 'day');
+}
+const ageH = iso => (Date.now() - new Date(iso).getTime())/3600000;
+function dist(a, b){ const R=6371, r=Math.PI/180; const dLat=(b.lat-a.lat)*r, dLon=(b.lon-a.lon)*r; const x=Math.sin(dLat/2)**2+Math.cos(a.lat*r)*Math.cos(b.lat*r)*Math.sin(dLon/2)**2; return 2*R*Math.asin(Math.sqrt(x)); }
+function parseHours(s){
+  if (s == null || s === '') return null; s = String(s).toLowerCase().trim();
+  let m = s.match(/^(\d+(?:[.,]\d+)?)\s*(min|mins|minutes|minuuttia|minuutti)/); if (m) return num(m[1])/60;
+  m = s.match(/^(\d+(?:[.,]\d+)?)\s*(h|hr|hrs|hour|hours|t|tunti|tuntia)?\b/); if (m) return num(m[1]);
+  m = s.match(/^(\d\d):(\d\d)$/); if (m) return +m[1] + m[2]/60;
+  return null;
+}
+function parseKw(s){ if (!s) return null; const m = String(s).match(/([\d.,]+)\s*(kw|w|kva)?/i); if (!m) return null; let v = num(m[1]); if (v == null) return null; if (m[2] && m[2].toLowerCase() === 'w') v = v/1000; return v; }
+function toast(msg){ const el = $('#toast'); el.textContent = msg; el.classList.add('on'); clearTimeout(toast.tm); toast.tm = setTimeout(() => el.classList.remove('on'), 3200); }
+const catName = c => t('cat_' + c);
+const sqHtml = (c, inner) => `<span class="sq cc" style="--c:${CATS[c].color}">${inner ?? IC[c]}</span>`;
+
+/* ---------------- State ---------------- */
+const S = {
+  cat: 'fuel', fuelType: LS.get('tv_fuel', 'e95'), sort: 'dist', parkFilter: 'all', driveConfirmedOnly: false, offerCat: 'all',
+  pendingBox: {}, places: new Map(), loaded: {fuel:[],ev:[],parking:[],wash:[],drive:[]}, pending: {}, status: {},
+  reports: new Map(), reportIds: new Set(), reportAreas: [], votes: new Map(), myVotes: LS.get('tv_myvotes', {}),
+  communityOffers: [], ref: null, selected: null, cheapKey: null, view: {type:'list'}, sheet: 'peek',
+  hel: {areas: [], status: 'idle'}, placing: null
+};
+
+/* ---------------- Storage: Supabase or on-device demo ---------------- */
+const store = (() => {
+  const live = CONFIG.SUPABASE_URL && CONFIG.SUPABASE_KEY && window.supabase && window.supabase.createClient;
+  const COLS = 'id,created_at,category,place_key,place_name,lat,lon,data,note';
+  const since = () => new Date(Date.now() - CONFIG.REPORT_DAYS*86400000).toISOString();
+  const agg = rows => { const out = {}; for (const v of rows) { const o = out[v.report_id] || (out[v.report_id] = {up:0, down:0}); if (v.value > 0) o.up++; else o.down++; } return out; };
+  if (live) {
+    const sb = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_KEY, {auth:{persistSession:false, autoRefreshToken:false}});
+    const fail = e => { const err = new Error(e.message || 'error'); err.code = e.code; throw err; };
+    return {
+      live: true,
+      async area(b){ const {data, error} = await sb.from('reports').select(COLS).neq('category','offer').gte('lat',b.s).lte('lat',b.n).gte('lon',b.w).lte('lon',b.e).gte('created_at', since()).order('created_at',{ascending:false}).limit(2000); if (error) fail(error); return data; },
+      async offers(){ const {data, error} = await sb.from('reports').select(COLS).eq('category','offer').gte('created_at', since()).order('created_at',{ascending:false}).limit(300); if (error) fail(error); return data; },
+      async add(row){ const {data, error} = await sb.from('reports').insert(row).select(COLS).single(); if (error) fail(error); return data; },
+      async votes(ids){ const out = {}; for (let i = 0; i < ids.length; i += 150) { const {data, error} = await sb.from('vote_totals').select('report_id,up,down').in('report_id', ids.slice(i, i+150)); if (error) fail(error); for (const r of data) out[r.report_id] = {up:+r.up, down:+r.down}; } return out; },
+      async vote(id, value){ const {error} = await sb.from('votes').insert({report_id:id, client_id:CID, value}); if (error) fail(error); }
+    };
+  }
+  const K = 'tv_demo_reports', V = 'tv_demo_votes';
+  return {
+    live: false,
+    async area(b){ return LS.get(K, []).filter(r => r.category !== 'offer' && r.lat >= b.s && r.lat <= b.n && r.lon >= b.w && r.lon <= b.e); },
+    async offers(){ return LS.get(K, []).filter(r => r.category === 'offer'); },
+    async add(row){ const all = LS.get(K, []); const recent = all.filter(r => r.client_id === CID && Date.now() - new Date(r.created_at) < 600000).length; if (recent >= 6) { const e = new Error('rate_limited'); throw e; } const r = {...row, id: uuid(), created_at: new Date().toISOString()}; all.push(r); LS.set(K, all.slice(-1500)); return r; },
+    async votes(ids){ const set = new Set(ids); return agg(LS.get(V, []).filter(v => set.has(v.report_id))); },
+    async vote(id, value){ const all = LS.get(V, []); if (all.some(v => v.report_id === id && v.client_id === CID)) { const e = new Error('duplicate'); e.code = '23505'; throw e; } all.push({report_id:id, client_id:CID, value}); LS.set(V, all); }
+  };
+})();
+
+/* ---------------- Derived place info ---------------- */
+const repsOf = p => S.reports.get(p.key) || [];
+const trust = r => { const v = S.votes.get(r.id); return v ? v.up - v.down : 0; };
+const ok = r => trust(r) > -2;
+function placeName(p){ return p.tags.name || p.tags.brand || p.tags.operator || (p.src === 'hel' ? helLabel(p.tags.hel) : t('unnamed_' + [...p.cats][0])); }
+function brandOf(p){
+  const s = [p.tags.brand, p.tags.name, p.tags.operator, p.tags.network].filter(Boolean).join(' ').toLowerCase();
+  if (/\babc\b/.test(s)) return 'abc'; if (/neste/.test(s)) return 'neste'; if (/\bst1\b/.test(s)) return 'st1';
+  if (/shell/.test(s)) return 'shell'; if (/teboil/.test(s)) return 'teboil'; if (/\bseo\b/.test(s)) return 'seo';
+  if (/juhlapesu/.test(s)) return 'juhlapesu'; return null;
+}
+function latestPrice(p, k){ for (const r of repsOf(p)) { if (r.category !== 'fuel' || !ok(r)) continue; const v = num(r.data && r.data[k]); if (v != null) return {v, at: r.created_at}; } return null; }
+function fuelTypesFor(p){
+  const set = new Set();
+  for (const f of FUELS) if (Object.keys(p.tags).some(k => f.tag.test(k) && p.tags[k] !== 'no')) set.add(f.k);
+  for (const r of repsOf(p)) if (r.category === 'fuel') for (const f of FUELS) if (num(r.data[f.k]) != null) set.add(f.k);
+  if (!set.size) ['e95','e98','diesel'].forEach(k => set.add(k));
+  return FUELS.filter(f => set.has(f.k));
+}
+const fuelLabel = f => f.label || t(f.lk);
+function evSockets(tags){ const out = []; for (const [k, v] of Object.entries(tags)) { const m = k.match(/^socket:([a-z0-9_]+)$/); if (!m) continue; const n = parseInt(v, 10); if (!(n > 0)) continue; out.push({name: SOCK[m[1]] || m[1], n, kw: parseKw(tags['socket:' + m[1] + ':output'])}); } return out; }
+function evMaxKw(p){
+  let m = parseKw(p.tags['charging_station:output']) || 0;
+  for (const s of evSockets(p.tags)) if (s.kw > m) m = s.kw;
+  const r = repsOf(p).find(r => r.category === 'ev' && ok(r) && num(r.data.max_kw) != null); if (r) m = Math.max(m, num(r.data.max_kw));
+  return m || null;
+}
+function tagFee(tags){
+  const keys = Object.keys(tags);
+  if (keys.some(k => /disc/.test(k) && /^(yes|true)$/.test(tags[k])) || keys.some(k => /condition/.test(k) && /disc/.test(tags[k])) || /disc|kiekko/i.test(tags.fee || '')) return 'disc';
+  if (tags.fee === 'no') return 'free';
+  if (tags.fee) return 'paid';
+  return 'unknown';
+}
+function helLabel(h){ const c = Number(h && h.luokka); return T.en['hel_' + c] ? t('hel_' + c) : t('hel_x'); }
+function helInfo(h){
+  const c = Number(h.luokka);
+  const fee = c === 2 ? 'free' : c === 8 ? 'disc' : c === 9 ? 'cond' : [3,4,5,6,7,10].includes(c) ? 'paid' : 'unknown';
+  return {fee, maxH: parseHours(h.kesto) ?? ({3:1, 4:2, 5:4, 7:1})[c] ?? null};
+}
+function parkingInfo(p){
+  const base = p.src === 'hel' ? helInfo(p.tags.hel) : {fee: tagFee(p.tags), maxH: parseHours(p.tags.maxstay)};
+  const rep = repsOf(p).find(r => r.category === 'parking' && ok(r));
+  if (rep) return {fee: rep.data.fee || base.fee, maxH: num(rep.data.max_h) ?? base.maxH, priceH: num(rep.data.price_h), rep};
+  return base;
+}
+function driveStatus(p){
+  const r = repsOf(p).find(r => r.category === 'drive' && ok(r) && r.data.drive);
+  if (r) return r.data.drive;
+  const d = p.tags.drive_through; if (d === 'yes' || d === 'only') return 'yes'; if (d === 'no') return 'no';
+  return 'unknown';
+}
+function washInfo(p){
+  const types = new Set(); if (p.tags.automated === 'yes') types.add('auto'); if (p.tags.self_service === 'yes') types.add('self');
+  const r = repsOf(p).find(r => r.category === 'wash' && ok(r));
+  if (r && Array.isArray(r.data.types)) r.data.types.forEach(x => types.add(x));
+  return {types: [...types], price: r ? num(r.data.price) : null, benefit: r ? r.data.benefit : null};
+}
+function evLatest(p){ return repsOf(p).find(r => r.category === 'ev' && ok(r)); }
+function passFilter(p){
+  if (S.cat === 'parking' && S.parkFilter !== 'all') return parkingInfo(p).fee === S.parkFilter;
+  if (S.cat === 'drive') { const st = driveStatus(p); if (st === 'no') return false; if (S.driveConfirmedOnly && st !== 'yes') return false; }
+  return true;
+}
+
+/* ---------------- Map ---------------- */
+const hash = (() => { const m = location.hash.match(/^#(fuel|ev|parking|wash|drive)\/(\d+(?:\.\d+)?)\/(-?\d+\.\d+)\/(-?\d+\.\d+)/); return m ? {cat:m[1], z:+m[2], lat:+m[3], lon:+m[4]} : null; })();
+if (hash) S.cat = hash.cat;
+const map = L.map('map', {zoomControl:false, minZoom:5, maxZoom:19, maxBounds:[[57.5,15],[71.5,35]], maxBoundsViscosity:.7, attributionControl:true})
+  .setView(hash ? [hash.lat, hash.lon] : [CONFIG.START.lat, CONFIG.START.lon], hash ? hash.z : CONFIG.START.z);
+L.control.zoom({position:'topright'}).addTo(map);
+map.attributionControl.setPrefix(false);
+const GL_ATTR = '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, © <a href="https://www.openmaptiles.org/">OpenMapTiles</a>, <a href="https://openfreemap.org">OpenFreeMap</a>';
+const helRenderer = L.canvas({tolerance: 8});
+
+function webglOK(){ try { const c = document.createElement('canvas'); return !!(c.getContext('webgl2') || c.getContext('webgl')); } catch(e){ return false; } }
+function tint(style){
+  const C = {land:'#E6EAEE', land2:'#E0E5EA', water:'#B7CCE2', park:'#D7E3DB', building:'#D3D9E0', major:'#F6E2A6', majorCase:'#E3C46E', road:'#FFFFFF', roadCase:'#CBD3DC', label:'#4A5562', water_l:'#5A7DA3', halo:'#EEF2F6'};
+  for (const src of Object.values(style.sources || {})) delete src.attribution;
+  for (const l of style.layers || []) {
+    const id = (l.id + ' ' + (l['source-layer'] || '')).toLowerCase(); const p = l.paint = l.paint || {};
+    try {
+      if (l.type === 'background') p['background-color'] = C.land;
+      else if (l.type === 'fill') {
+        if (/water|ocean|lake/.test(id)) p['fill-color'] = C.water;
+        else if (/park|wood|forest|grass|wetland|landcover|cemetery|nature/.test(id)) p['fill-color'] = C.park;
+        else if (/building/.test(id)) p['fill-color'] = C.building;
+        else if (/landuse|residential|industrial|commercial/.test(id)) p['fill-color'] = C.land2;
+      } else if (l.type === 'line') {
+        if (/water|river|stream|canal|ditch/.test(id)) p['line-color'] = C.water;
+        else if (/motorway|trunk/.test(id)) p['line-color'] = /casing|outline/.test(id) ? C.majorCase : C.major;
+        else if (/road|highway|street|primary|secondary|tertiary|minor|service|path|bridge|tunnel/.test(id)) p['line-color'] = /casing|outline/.test(id) ? C.roadCase : C.road;
+      } else if (l.type === 'symbol' && l.layout && l.layout['text-field']) {
+        p['text-color'] = /water|ocean|lake|sea/.test(id) ? C.water_l : C.label; p['text-halo-color'] = C.halo;
+      }
+    } catch(e){}
+  }
+  return style;
+}
+async function addBasemap(){
+  const raster = () => L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:19, attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'}).addTo(map);
+  if (!window.maplibregl || !L.maplibreGL || !webglOK()) return raster();
+  try {
+    const res = await fetch(CONFIG.STYLE_URL); if (!res.ok) throw new Error(res.status);
+    const style = tint(await res.json());
+    L.maplibreGL({style}).addTo(map);
+    map.attributionControl.addAttribution(GL_ATTR);
+  } catch(e) { raster(); }
+}
+
+/* ---------------- Loading data ---------------- */
+const boxOf = bb => ({s: bb.getSouth(), w: bb.getWest(), n: bb.getNorth(), e: bb.getEast()});
+const covered = (list, b) => list.some(a => a.s <= b.s && a.w <= b.w && a.n >= b.n && a.e >= b.e);
+const bboxStr = b => [b.s, b.w, b.n, b.e].map(v => v.toFixed(5)).join(',');
+const OQ = {
+  fuel: b => `nwr["amenity"="fuel"](${b});`,
+  ev: b => `nwr["amenity"="charging_station"](${b});`,
+  parking: b => `nwr["amenity"="parking"](${b});`,
+  wash: b => `(nwr["amenity"="car_wash"](${b});nwr["amenity"="fuel"]["car_wash"="yes"](${b}););`,
+  drive: b => `(nwr["drive_through"~"^(yes|only)$"](${b});nwr["amenity"="fast_food"]["brand"~"McDonald|Hesburger|Burger King|KFC|Taco Bell",i](${b});nwr["amenity"="fast_food"]["name"~"McDonald|Hesburger|Burger King|KFC|Taco Bell",i](${b}););`
+};
+function addOsm(el, cat){
+  const lat = el.lat ?? (el.center && el.center.lat), lon = el.lon ?? (el.center && el.center.lon);
+  if (lat == null || lon == null) return;
+  const tags = el.tags || {};
+  if (cat === 'parking' && /^(private|no)$/.test(tags.access || '')) return;
+  const key = 'osm:' + el.type + '/' + el.id;
+  let p = S.places.get(key);
+  if (!p) { p = {key, src:'osm', osm: el.type + '/' + el.id, lat, lon, tags, cats: new Set()}; S.places.set(key, p); }
+  p.cats.add(cat);
+}
+async function loadOverpass(cat, b){
+  if (S.pending[cat]) S.pending[cat].abort();
+  const ac = new AbortController(); S.pending[cat] = ac; S.pendingBox[cat] = b; S.status[cat] = 'loading'; renderSheet();
+  const q = `[out:json][timeout:25];${OQ[cat](bboxStr(b))}out center tags qt;`;
+  for (const url of CONFIG.OVERPASS) {
+    try {
+      const res = await fetch(url, {method:'POST', body:'data=' + encodeURIComponent(q), headers:{'Content-Type':'application/x-www-form-urlencoded'}, signal: ac.signal});
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const j = await res.json();
+      for (const el of j.elements || []) addOsm(el, cat);
+      S.loaded[cat].push(b); S.status[cat] = 'ok'; S.pending[cat] = null; return;
+    } catch(e) { if (e.name === 'AbortError') return; }
+  }
+  S.status[cat] = 'error'; S.pending[cat] = null;
+}
+function ingestReports(rows){
+  for (const r of rows || []) {
+    if (!r || S.reportIds.has(r.id)) continue;
+    S.reportIds.add(r.id); r.data = r.data || {};
+    if (r.category === 'offer') { S.communityOffers.push(r); S.communityOffers.sort((a, b) => b.created_at.localeCompare(a.created_at)); continue; }
+    const arr = S.reports.get(r.place_key) || []; arr.push(r); arr.sort((a, b) => b.created_at.localeCompare(a.created_at)); S.reports.set(r.place_key, arr);
+    if (r.place_key.startsWith('user:') && r.data.name && !S.places.has(r.place_key) && r.lat != null)
+      S.places.set(r.place_key, {key:r.place_key, src:'user', lat:r.lat, lon:r.lon, tags:{name:r.data.name}, cats:new Set([r.category])});
+  }
+}
+async function loadReports(b){
+  try {
+    const rows = await store.area(b); ingestReports(rows); S.reportAreas.push(b);
+    const ids = rows.map(r => r.id); if (ids.length) { const v = await store.votes(ids); for (const [id, o] of Object.entries(v)) S.votes.set(id, o); }
+  } catch(e) { console.warn('reports', e); }
+}
+const HEL_BOX = {s:60.09, w:24.78, n:60.30, e:25.27};
+const intersectsHel = b => !(b.n < HEL_BOX.s || b.s > HEL_BOX.n || b.e < HEL_BOX.w || b.w > HEL_BOX.e);
+async function loadHel(b){
+  if (covered(S.hel.areas, b)) return;
+  S.hel.status = 'loading';
+  const u = `${CONFIG.HEL_WFS}?service=WFS&version=2.0.0&request=GetFeature&typeNames=avoindata:Pysakointipaikat_alue&outputFormat=application/json&srsName=EPSG:4326&count=3000&bbox=${b.w},${b.s},${b.e},${b.n},EPSG:4326`;
+  try {
+    const res = await fetch(u); if (!res.ok) throw new Error(res.status);
+    const j = await res.json();
+    for (const f of j.features || []) {
+      const h = f.properties || {}; if (!f.geometry || HEL_SKIP.test(String(h.tyyppi || '').trim())) continue;
+      if (!h.luokka && !h.tyyppi) continue;
+      const key = 'hel:' + (h.id ?? f.id); if (S.places.has(key)) continue;
+      const ring = f.geometry.type === 'MultiPolygon' ? f.geometry.coordinates[0][0] : f.geometry.type === 'Polygon' ? f.geometry.coordinates[0] : null;
+      if (!ring || !ring.length) continue;
+      let lat = 0, lon = 0; for (const c of ring) { lon += c[0]; lat += c[1]; } lat /= ring.length; lon /= ring.length;
+      S.places.set(key, {key, src:'hel', lat, lon, geom: f.geometry, tags:{hel:h}, cats:new Set(['parking'])});
+    }
+    S.hel.areas.push(b); S.hel.status = 'ok';
+  } catch(e) { S.hel.status = 'error'; }
+}
+
+async function refresh(){
+  writeHash();
+  const cat = S.cat, z = map.getZoom();
+  if (z < CATS[cat].minZoom) { renderAll(); return; }
+  const view = boxOf(map.getBounds()), fetchBox = boxOf(map.getBounds().pad(.35));
+  const tasks = [];
+  if (!covered(S.loaded[cat], view) && !(S.pending[cat] && S.pendingBox[cat] && covered([S.pendingBox[cat]], view))) tasks.push(loadOverpass(cat, fetchBox));
+  if (!covered(S.reportAreas, view)) tasks.push(loadReports(fetchBox));
+  if (cat === 'parking' && z >= 15 && intersectsHel(view) && !covered(S.hel.areas, view)) tasks.push(loadHel(boxOf(map.getBounds().pad(.2))));
+  renderAll();
+  if (!tasks.length) return;
+  await Promise.allSettled(tasks);
+  renderAll();
+}
+function writeHash(){ const c = map.getCenter(); history.replaceState(null, '', `#${S.cat}/${map.getZoom()}/${c.lat.toFixed(5)}/${c.lng.toFixed(5)}`); }
+
+/* ---------------- Markers ---------------- */
+let cluster = null, helLayer = null, meMarker = null, dropMarker = null, placingMarker = null;
+const markers = new Map();
+function computeCheapest(){
+  S.cheapKey = null; if (S.cat !== 'fuel') return;
+  const b = map.getBounds(); let best = Infinity;
+  for (const p of S.places.values()) { if (!p.cats.has('fuel') || !b.contains([p.lat, p.lon])) continue; const lp = latestPrice(p, S.fuelType); if (lp && ageH(lp.at) <= 48 && lp.v < best) { best = lp.v; S.cheapKey = p.key; } }
+}
+function markerHtml(p){
+  const c = S.cat, col = CATS[c].color, sel = p.key === S.selected ? ' sel' : '', user = p.src === 'user' ? ' user' : '';
+  if (c === 'fuel') {
+    const lp = latestPrice(p, S.fuelType);
+    if (lp && ageH(lp.at) <= 24*14) {
+      const cls = (p.key === S.cheapKey ? ' cheap' : '') + (ageH(lp.at) > 48 ? ' stale' : '');
+      return {html:`<div class="pin pin-plate${sel}${user}" style="--c:${col}"><span class="plate${cls}"><span>${fmtPrice(lp.v)}</span></span></div>`, price: lp.v};
+    }
+    return {html:`<div class="pin pin-dot${sel}${user}" style="--c:${col}">${IC.fuel}</div>`};
+  }
+  if (c === 'ev') { const kw = evMaxKw(p); return {html:`<div class="pin pin-dot${sel}${user}" style="--c:${col}">${IC.ev}${kw ? `<span class="pin-tag">${Math.round(kw)} kW</span>` : ''}</div>`}; }
+  if (c === 'parking') { const pi = parkingInfo(p); return {html:`<div class="pin pin-p fee-${pi.fee}${sel}${user}" style="--c:${col}">P${pi.maxH ? `<span class="pin-tag">${fmtH(pi.maxH)}</span>` : ''}</div>`}; }
+  if (c === 'drive') { const st = driveStatus(p); return {html:`<div class="pin pin-dot${st !== 'yes' ? ' dim' : ''}${sel}${user}" style="--c:${col}">${IC.drive}</div>`}; }
+  return {html:`<div class="pin pin-dot${sel}${user}" style="--c:${col}">${IC[c]}</div>`};
+}
+function clusterIcon(cl){
+  const col = CATS[S.cat].color; let min = Infinity;
+  if (S.cat === 'fuel') for (const m of cl.getAllChildMarkers()) if (m.options.price != null && m.options.price < min) min = m.options.price;
+  const plate = min < Infinity ? `<span class="plate"><span>${fmtPrice(min)}</span></span>` : '';
+  return L.divIcon({className:'mk', iconSize:null, html:`<div class="pin-cl pin" style="--c:${col}"><b>${cl.getChildCount()}</b>${plate}</div>`});
+}
+function renderMarkers(){
+  if (cluster) { map.removeLayer(cluster); cluster = null; }
+  markers.clear();
+  const c = S.cat;
+  if (map.getZoom() >= CATS[c].minZoom) {
+    cluster = L.markerClusterGroup({maxClusterRadius: c === 'fuel' ? 46 : 54, disableClusteringAtZoom: c === 'parking' ? 17 : 15, showCoverageOnHover:false, spiderfyOnMaxZoom:true, chunkedLoading:true, iconCreateFunction: clusterIcon});
+    computeCheapest();
+    const b = map.getBounds().pad(.6), list = [];
+    for (const p of S.places.values()) {
+      if (!p.cats.has(c) || p.src === 'hel' || !b.contains([p.lat, p.lon]) || !passFilter(p)) continue;
+      const {html, price} = markerHtml(p);
+      const m = L.marker([p.lat, p.lon], {icon: L.divIcon({className:'mk', html, iconSize:null}), title: placeName(p), price, zIndexOffset: p.key === S.selected ? 1000 : (p.key === S.cheapKey ? 500 : 0)});
+      m.on('click', () => openPlace(p.key, false));
+      markers.set(p.key, m); list.push(m);
+    }
+    cluster.addLayers(list); map.addLayer(cluster);
+  }
+  renderHel();
+}
+function renderHel(){
+  if (helLayer) { map.removeLayer(helLayer); helLayer = null; }
+  if (S.cat !== 'parking' || map.getZoom() < 15) return;
+  const b = map.getBounds().pad(.3), layers = [];
+  for (const p of S.places.values()) {
+    if (p.src !== 'hel' || !b.contains([p.lat, p.lon]) || !passFilter(p)) continue;
+    const col = FEE_COLORS[parkingInfo(p).fee], sel = p.key === S.selected;
+    const g = L.geoJSON(p.geom, {renderer: helRenderer, style:{color: sel ? '#121820' : col, weight: sel ? 6 : 4, opacity:.95, fillColor: col, fillOpacity:.35}});
+    g.on('click', e => { L.DomEvent.stopPropagation(e); openPlace(p.key, false); });
+    layers.push(g);
+  }
+  helLayer = L.layerGroup(layers).addTo(map);
+}
+
+/* ---------------- Sheet rendering ---------------- */
+const body = $('#sheetBody');
+function visiblePlaces(){
+  const b = map.getBounds().pad(.05), c = map.getCenter();
+  const ref = S.ref && b.contains([S.ref.lat, S.ref.lon]) ? S.ref : {lat:c.lat, lon:c.lng};
+  const arr = [];
+  for (const p of S.places.values()) { if (!p.cats.has(S.cat) || !b.contains([p.lat, p.lon]) || !passFilter(p)) continue; p._d = dist(ref, p); arr.push(p); }
+  if (S.cat === 'fuel' && S.sort === 'cheap') {
+    arr.forEach(p => { const lp = latestPrice(p, S.fuelType); p._p = lp && ageH(lp.at) <= 24*14 ? lp.v : Infinity; });
+    arr.sort((a, b) => a._p - b._p || a._d - b._d);
+  } else arr.sort((a, b) => a._d - b._d);
+  return arr;
+}
+function statusHtml(){
+  const c = S.cat, z = map.getZoom(), parts = [];
+  if (z < CATS[c].minZoom) parts.push(`<span>${t('zoom_' + c)}</span>`);
+  else if (S.status[c] === 'loading') parts.push(`<span class="spin" aria-hidden="true"></span><span>${t('loading')}</span>`);
+  else if (S.status[c] === 'error') parts.push(`<span>${t('load_fail')}</span><button class="linkbtn" data-act="retry">${t('retry')}</button>`);
+  if (c === 'parking' && S.hel.status === 'error' && z >= 15) parts.push(`<span>${t('hel_fail')}</span>`);
+  return parts.length ? `<p class="status">${parts.join('')}</p>` : '';
+}
+function controlsHtml(){
+  const c = S.cat;
+  if (c === 'fuel') return `<div class="ctl" role="group">${FUELS.map(f => `<button class="chip" data-act="fuel" data-v="${f.k}" aria-pressed="${S.fuelType === f.k}">${esc(fuelLabel(f))}</button>`).join('')}<span class="gap"></span>
+    <button class="chip" data-act="sort" data-v="dist" aria-pressed="${S.sort === 'dist'}">${t('sort_near')}</button><button class="chip" data-act="sort" data-v="cheap" aria-pressed="${S.sort === 'cheap'}">${t('sort_cheap')}</button></div>`;
+  if (c === 'parking') return `<div class="ctl" role="group">${['all','free','disc','paid'].map(k => `<button class="chip" data-act="pf" data-v="${k}" aria-pressed="${S.parkFilter === k}">${k === 'all' ? '' : `<span class="dot" style="--c:${FEE_COLORS[k]}"></span>`}${k === 'all' ? t('all') : k === 'disc' ? t('fee_disc_s') : t('fee_' + k)}</button>`).join('')}</div>`;
+  if (c === 'drive') return `<div class="ctl" role="group"><button class="chip" data-act="dc" data-v="0" aria-pressed="${!S.driveConfirmedOnly}">${t('all')}</button><button class="chip" data-act="dc" data-v="1" aria-pressed="${S.driveConfirmedOnly}">${t('confirmed_only')}</button></div>`;
+  return '';
+}
+function rowHtml(p){
+  const c = S.cat; let vis = sqHtml(c), val = '', sub = [];
+  sub.push(`<span>${fmtKm(p._d)}</span>`);
+  const brand = brandOf(p); if (brand && placeName(p).toLowerCase().indexOf(BRAND_NAMES[brand].toLowerCase()) < 0) sub.push(`<span>${BRAND_NAMES[brand]}</span>`);
+  if (c === 'fuel') {
+    const lp = latestPrice(p, S.fuelType);
+    if (lp && ageH(lp.at) <= 24*14) { val = `<span class="plate${p.key === S.cheapKey ? ' cheap' : ''}${ageH(lp.at) > 48 ? ' stale' : ''}"><span>${fmtPrice(lp.v)}</span></span>`; sub.push(`<span>${ago(lp.at)}</span>`); }
+    else val = `<span class="val muted">${t('no_price')}</span>`;
+  } else if (c === 'ev') { const kw = evMaxKw(p); const r = evLatest(p); if (r && num(r.data.price_kwh) != null) val = `<span class="val">${fmtPrice(num(r.data.price_kwh), 2)} €/kWh</span>`; else if (kw) val = `<span class="val">${Math.round(kw)} kW</span>`; }
+  else if (c === 'parking') { const pi = parkingInfo(p); vis = `<span class="sq sqP pfee fee-${pi.fee}">P</span>`; if (p.src === 'hel' && p.tags.hel.voimassaolo) sub.push(`<span>${esc(p.tags.hel.voimassaolo)}</span>`); val = `<span class="val">${pi.priceH != null ? fmtPrice(pi.priceH, 2) + ' €/h' : pi.maxH ? fmtH(pi.maxH) : ''}</span>`; }
+  else if (c === 'wash') { const w = washInfo(p); if (w.price != null) val = `<span class="val">${fmtPrice(w.price, 2)} €</span>`; }
+  else if (c === 'drive') { const st = driveStatus(p); if (st !== 'yes') val = `<span class="val muted">${t('drive_unk_s')}</span>`; }
+  if (p.src === 'user') sub.push(`<span>${t('user_added')}</span>`);
+  return `<li><button class="row" data-act="open" data-key="${esc(p.key)}">${vis}<span style="min-width:0"><span class="nm">${esc(placeName(p))}</span><span class="sub">${sub.join('')}</span></span>${val}</button></li>`;
+}
+function listView(){
+  const c = S.cat, z = map.getZoom();
+  const items = z >= CATS[c].minZoom ? visiblePlaces() : [];
+  const shown = items.slice(0, 80);
+  let empty = '';
+  if (z >= CATS[c].minZoom && !items.length && S.status[c] !== 'loading' && S.status[c] !== 'error')
+    empty = `<p class="status">${(S.cat === 'parking' && S.parkFilter !== 'all') || (S.cat === 'drive' && S.driveConfirmedOnly) ? t('none_filter') : t('none_here')}</p>`;
+  return `<div class="sh-head" data-drag>
+      <div class="sh-title">${sqHtml(c)}<h2>${catName(c)}</h2>${items.length ? `<span class="count">${items.length}</span>` : ''}</div>
+      ${controlsHtml()}
+    </div>
+    ${statusHtml()}${empty}
+    <ul class="rows">${shown.map(rowHtml).join('')}</ul>
+    ${!store.live ? `<p class="src">${t('demo')}</p>` : ''}`;
+}
+
+/* Parking disc */
+function discTimes(){
+  const now = new Date(), set = new Date(now); set.setSeconds(0, 0);
+  const m = set.getMinutes(); if (m < 30) set.setMinutes(30); else { set.setMinutes(0); set.setHours(set.getHours() + 1); }
+  return {now, set};
+}
+function discHtml(maxH){
+  const {now, set} = discTimes();
+  const angle = ((set.getHours() % 12) + set.getMinutes()/60) * 30;
+  const ticks = []; for (let i = 0; i < 24; i++) { const a = i * 15 * Math.PI/180, r1 = i % 2 ? 56 : 50, r2 = 61; ticks.push(`<line x1="${112 + r1*Math.sin(a)}" y1="${108 - r1*Math.cos(a)}" x2="${112 + r2*Math.sin(a)}" y2="${108 - r2*Math.cos(a)}" stroke="#1452A8" stroke-width="${i % 2 ? 1.6 : 3}" stroke-linecap="round"/>`); }
+  const nums = [[12,0],[3,90],[6,180],[9,270]].map(([n, d]) => { const a = d*Math.PI/180; return `<text x="${112 + 38*Math.sin(a)}" y="${108 - 38*Math.cos(a) + 6}" text-anchor="middle" font-family="Barlow Condensed,Barlow,sans-serif" font-weight="700" font-size="17" fill="#1452A8">${n}</text>`; }).join('');
+  const leave = maxH ? new Date(set.getTime() + maxH*3600000) : null;
+  return `<div class="disc">
+    <svg viewBox="0 0 200 200" role="img" aria-label="${esc(t('disc_set'))} ${fmtClock(set)}">
+      <rect x="3" y="3" width="194" height="194" rx="20" fill="#1452A8"/><rect x="10" y="10" width="180" height="180" rx="14" fill="none" stroke="#fff" stroke-width="3.5"/>
+      <text x="24" y="54" fill="#fff" font-family="Barlow Condensed,Barlow,sans-serif" font-weight="700" font-size="40">P</text>
+      <circle cx="112" cy="108" r="66" fill="#fff"/>${ticks.join('')}${nums}
+      <g class="hand" style="transform:rotate(${reduced ? angle : 0}deg)" data-angle="${angle}"><path d="M112 108 L112 52" stroke="#121820" stroke-width="5" stroke-linecap="round"/><path d="M104 60 L112 44 L120 60 Z" fill="#121820"/></g>
+      <circle cx="112" cy="108" r="7" fill="#FFC93C" stroke="#121820" stroke-width="2.5"/>
+    </svg>
+    <div><p class="set">${t('disc_set')}</p><p class="time">${fmtClock(set)}</p>
+    <p class="small">${t('disc_arrived', {t: fmtClock(now)})}</p>${leave ? `<p class="small"><b>${t('disc_leave', {t: fmtClock(leave)})}</b></p>` : ''}</div>
+  </div><p class="lead" style="font-size:13.5px">${t('disc_rule')} ${t('check_signs')}</p>`;
+}
+
+function repValues(r){
+  const d = r.data || {}, kv = (k, v) => `<span class="kv"><i>${esc(k)}</i><b>${esc(v)}</b></span>`, out = [];
+  if (d.name) out.push(kv(t('place_name'), d.name));
+  if (r.category === 'fuel') for (const f of FUELS) { const v = num(d[f.k]); if (v != null) out.push(kv(fuelLabel(f), fmtPrice(v) + (f.unit === 'kg' ? ' €/kg' : ''))); }
+  if (r.category === 'ev') {
+    if (d.status) out.push(kv(t('status'), t('st_' + d.status)));
+    if (num(d.price_kwh) != null) out.push(kv('€/kWh', fmtPrice(num(d.price_kwh), 2)));
+    if (num(d.price_min) != null) out.push(kv('€/min', fmtPrice(num(d.price_min), 2)));
+    if (num(d.start_fee) != null) out.push(kv(t('start_fee'), fmtPrice(num(d.start_fee), 2)));
+    if (num(d.max_kw) != null) out.push(kv(t('max_power'), Math.round(num(d.max_kw)) + ' kW'));
+    if (d.operator) out.push(kv(t('operator'), d.operator));
+  }
+  if (r.category === 'parking') {
+    if (d.fee) out.push(kv(t('fee'), d.fee === 'disc' ? t('fee_disc_s') : t('fee_' + d.fee)));
+    if (num(d.price_h) != null) out.push(kv('€/h', fmtPrice(num(d.price_h), 2)));
+    if (num(d.max_h) != null) out.push(kv(t('time_limit'), fmtH(num(d.max_h))));
+  }
+  if (r.category === 'wash') {
+    if (Array.isArray(d.types) && d.types.length) out.push(kv(t('wash_types'), d.types.map(x => t('w_' + x)).join(', ')));
+    if (num(d.price) != null) out.push(kv(t('wash_price'), fmtPrice(num(d.price), 2)));
+    if (d.benefit) out.push(kv(t('benefit'), d.benefit));
+  }
+  if (r.category === 'drive' && d.drive) out.push(kv(catName('drive'), d.drive === 'yes' ? t('drive_yes') : t('drive_no')));
+  if (r.category === 'offer') return '';
+  return `<div class="kvs">${out.join('')}</div>`;
+}
+function voteBtns(r){
+  const v = S.votes.get(r.id) || {up:0, down:0}, mine = S.myVotes[r.id];
+  return `<div class="votes"><button class="vote" data-act="vote" data-id="${r.id}" data-v="1" aria-pressed="${mine === 1}">${t('still_right')}<b>${v.up}</b></button><button class="vote" data-act="vote" data-id="${r.id}" data-v="-1" aria-pressed="${mine === -1}">${t('wrong')}<b>${v.down}</b></button></div>`;
+}
+function repsHtml(p){
+  const reps = repsOf(p).slice(0, 15);
+  if (!reps.length) return `<p class="empty">${t('no_reports')}</p>`;
+  return `<ul class="reps">${reps.map(r => `<li class="rep${ok(r) ? '' : ' low'}">${repValues(r)}${r.note ? `<p class="rep-note">${esc(r.note)}</p>` : ''}<div class="rep-foot"><span>${t('reported', {t: ago(r.created_at)})}</span>${voteBtns(r)}</div></li>`).join('')}</ul>`;
+}
+function offerCard(o){
+  const cats = o.cats.map(c => sqHtml(c)).join('');
+  return `<article class="offer" style="--c:${CATS[o.cats[0]].color}"><div class="of-top"><span class="of-brand">${BRAND_NAMES[o.brand]}</span><span class="of-cats">${cats}</span></div>
+    <h4>${esc(o.title[lang])}</h4><p>${esc(o.body[lang])}</p><p class="of-meta"><span>${t('checked', {d: fmtDate(o.checked)})}</span><a href="${o.url}" target="_blank" rel="noopener">${t('source')}</a></p></article>`;
+}
+function userOfferCard(r){
+  const d = r.data || {}, c = CATS[d.cat] ? d.cat : 'fuel';
+  return `<article class="offer" style="--c:${CATS[c].color}"><div class="of-top"><span class="of-brand">${esc(d.brand)}</span><span class="of-cats">${sqHtml(c)}</span></div>
+    <h4>${esc(d.title)}</h4>${d.detail ? `<p>${esc(d.detail)}</p>` : ''}
+    <p class="of-meta">${d.valid_until ? `<span>${t('valid_until')} ${fmtDate(d.valid_until)}</span>` : ''}${/^https?:\/\//.test(d.url || '') ? `<a href="${esc(d.url)}" target="_blank" rel="noopener nofollow ugc">${t('link')}</a>` : ''}<span>${t('reported', {t: ago(r.created_at)})}</span></p>
+    <div class="rep-foot" style="justify-content:flex-end">${voteBtns(r)}</div></article>`;
+}
+function offersFor(p, cat){
+  const b = brandOf(p); if (!b) return [];
+  return SEED.filter(o => (o.brand === b || (b === 'shell' && o.brand === 'st1')) && o.cats.includes(cat));
+}
+function detailView(p){
+  if (!p) return listView();
+  const c = S.cat, tg = p.tags, b = brandOf(p), facts = [];
+  const addr = [ [tg['addr:street'], tg['addr:housenumber']].filter(Boolean).join(' '), tg['addr:city'] || tg['addr:municipality'] ].filter(Boolean).join(', ');
+  let sub = [b && placeName(p).toLowerCase().indexOf(BRAND_NAMES[b].toLowerCase()) < 0 ? BRAND_NAMES[b] : '', addr].filter(Boolean).join(', ');
+  if (p.src === 'user') sub = t('user_added');
+  let hero = '', badges = [], notices = '';
+  if (b === 'teboil') notices += `<p class="notice">${t('teboil')} <a href="${NOTICE_SRC.teboil}" target="_blank" rel="noopener">${t('source')}</a></p>`;
+  if (b === 'shell') notices += `<p class="notice">${t('shell')} <a href="${NOTICE_SRC.shell}" target="_blank" rel="noopener">${t('source')}</a></p>`;
+  if (c === 'fuel') {
+    const types = fuelTypesFor(p);
+    hero = `<div class="board">${types.map(f => { const lp = latestPrice(p, f.k); const fresh = lp && ageH(lp.at) <= 24*14;
+      return `<span class="ft">${esc(fuelLabel(f))}</span>${fresh ? `<span class="plate lg${p.key === S.cheapKey && f.k === S.fuelType ? ' cheap' : ''}${ageH(lp.at) > 48 ? ' stale' : ''}"><span>${fmtPrice(lp.v)}</span></span><span class="age">${f.unit === 'kg' ? '€/kg' : '€/l'}, ${ago(lp.at)}</span>` : `<span class="plate lg none"><span>–,–––</span></span><span class="age">${t('no_price')}</span>`}`; }).join('')}</div>`;
+  } else if (c === 'ev') {
+    const socks = evSockets(tg), kw = evMaxKw(p), r = evLatest(p);
+    if (kw) badges.push(`<span class="badge">${t('max_power')} ${Math.round(kw)} kW</span>`);
+    if (r && r.data.status) badges.push(`<span class="badge" style="${r.data.status === 'broken' ? 'background:#FCE3E6;color:#9B1C2C' : ''}">${t('st_' + r.data.status)}</span>`);
+    if (r && num(r.data.price_kwh) != null) badges.push(`<span class="badge">${fmtPrice(num(r.data.price_kwh), 2)} €/kWh</span>`);
+    if (socks.length) hero = `<div class="sec"><h3>${t('connectors')}</h3><div class="sockets">${socks.map(s => `<div class="socket"><b>${esc(s.name)}</b><span>${s.n}×${s.kw ? ' ' + Math.round(s.kw) + ' kW' : ''}</span></div>`).join('')}</div></div>`;
+    if (tg.operator) facts.push([t('operator'), tg.operator]); if (tg.network) facts.push([t('network'), tg.network]);
+  } else if (c === 'parking') {
+    const pi = parkingInfo(p);
+    badges.push(`<span class="badge fee fee-${pi.fee}">${pi.fee === 'unknown' ? t('fee_unknown') : t('fee_' + pi.fee)}</span>`);
+    if (pi.maxH) badges.push(`<span class="badge">${t('time_limit')} ${fmtH(pi.maxH)}</span>`);
+    if (pi.priceH != null) badges.push(`<span class="badge">${fmtPrice(pi.priceH, 2)} €/h</span>`);
+    if (tg.park_ride && tg.park_ride !== 'no') badges.push(`<span class="badge">${t('park_ride')}</span>`);
+    if (tg.access === 'customers') badges.push(`<span class="badge">${t('customers')}</span>`);
+    if (pi.fee === 'disc') hero = discHtml(pi.maxH);
+    if (p.src === 'hel') {
+      const h = tg.hel, ty = String(h.tyyppi || '').toLowerCase();
+      if (/inva/.test(ty)) badges.push(`<span class="badge">${t('inva')}</span>`);
+      if (/sähköauto/.test(ty)) badges.push(`<span class="badge">${t('evp')}</span>`);
+      if (h.voimassaolo) { facts.push([t('hel_hours'), h.voimassaolo]); if (/\(/.test(h.voimassaolo)) facts.push(['', t('hel_hours_note')]); }
+      if (h.paikat_ala) facts.push([t('hel_spaces'), String(h.paikat_ala)]);
+    }
+    if (tg.capacity) facts.push([t('capacity'), tg.capacity]);
+    const pt = {surface:'surface', 'multi-storey':'multi', underground:'underground'}[tg.parking]; if (pt) facts.push([t('ptype'), t(pt)]);
+  } else if (c === 'wash') {
+    const w = washInfo(p);
+    w.types.forEach(x => badges.push(`<span class="badge">${t('w_' + x)}</span>`));
+    if (w.price != null) badges.push(`<span class="badge">${t('wash_price')} ${fmtPrice(w.price, 2)}</span>`);
+    if (w.benefit) facts.push([t('benefit'), w.benefit]);
+  } else if (c === 'drive') {
+    const st = driveStatus(p);
+    badges.push(`<span class="badge" style="${st === 'yes' ? `background:${CATS.drive.color};color:#fff` : ''}">${st === 'yes' ? t('drive_yes') : st === 'no' ? t('drive_no') : t('drive_unknown')}</span>`);
+  }
+  if (tg.opening_hours) facts.unshift([t('hours'), tg.opening_hours]);
+  if (c === 'fuel') { const fl = fuelTypesFor(p).map(fuelLabel).join(', '); if (Object.keys(tg).some(k => k.startsWith('fuel:'))) facts.push([t('fuels'), fl]); }
+  const offers = offersFor(p, c);
+  const reportLabel = c === 'fuel' ? t('report_prices') : t('report_update');
+  const src = p.src === 'osm' ? `<p class="src">${t('fix_osm')} <a href="https://www.openstreetmap.org/${p.osm}" target="_blank" rel="noopener">${t('open_osm')}</a></p>`
+    : p.src === 'hel' ? `<p class="src">${t('hel_src')}, CC BY 4.0. ${tg.hel.paivitetty_tietopalveluun ? t('hel_updated', {d: fmtDate(String(tg.hel.paivitetty_tietopalveluun).slice(0,10))}) : ''}</p>` : '';
+  return `<div class="dt-top" data-drag><button class="ghost" data-act="back">${IC.back}${catName(c)}</button><button class="ghost" data-act="back" aria-label="${t('close')}">${IC.close}</button></div>
+    <h2 class="dt-name">${esc(placeName(p))}</h2>${sub ? `<p class="dt-sub">${esc(sub)}</p>` : ''}
+    ${badges.length ? `<div class="dt-badges">${badges.join('')}</div>` : ''}${notices}${hero}
+    <div class="actions"><button class="btn primary" data-act="report">${IC.pen}${reportLabel}</button><a class="btn" href="https://www.google.com/maps/dir/?api=1&destination=${p.lat.toFixed(6)},${p.lon.toFixed(6)}" target="_blank" rel="noopener">${IC.nav}${t('directions')}</a></div>
+    ${facts.length ? `<div class="sec"><dl class="facts">${facts.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl></div>` : ''}
+    ${offers.length ? `<div class="sec"><h3>${t('chain_offers')}</h3></div>${offers.map(offerCard).join('')}` : ''}
+    <div class="sec"><h3>${t('community')}</h3>${repsHtml(p)}</div>${src}`;
+}
+
+/* Forms */
+const fld = (name, label, attrs = '', opt = true, val = '') => `<div class="fld"><label for="f_${name}">${label}${opt ? ` <span class="opt">(${t('optional')})</span>` : ''}</label><input id="f_${name}" name="${name}" ${attrs} value="${esc(val)}"></div>`;
+const dec = 'inputmode="decimal" autocomplete="off"';
+const picks = (name, items, type = 'radio', checked = []) => `<div class="picks">${items.map(([v, l]) => `<label class="pick"><input type="${type}" name="${name}" value="${v}" ${checked.includes(v) ? 'checked' : ''}><span>${l}</span></label>`).join('')}</div>`;
+function catFields(c, p){
+  if (c === 'fuel') { const types = p ? fuelTypesFor(p) : FUELS.slice(0, 3);
+    return `<div class="grid2">${types.map(f => fld(f.k, `${esc(fuelLabel(f))} ${f.unit === 'kg' ? '€/kg' : '€/l'}`, `${dec} placeholder="${fmtPrice(0)}"`, false)).join('')}</div>`; }
+  if (c === 'ev') return `<div class="fld"><span class="lb">${t('status')}</span>${picks('status', [['working', t('st_working')], ['broken', t('st_broken')]])}</div>
+    <div class="grid2">${fld('price_kwh', t('price_kwh'), dec)}${fld('price_min', t('price_min'), dec)}${fld('start_fee', t('start_fee'), dec)}${fld('max_kw', t('max_kw'), dec)}</div>
+    ${fld('operator', t('operator'), `maxlength="60" placeholder="${esc(t('operator_ph'))}"`)}`;
+  if (c === 'parking') return `<div class="fld"><span class="lb">${t('fee')}</span>${picks('fee', [['free', t('fee_free')], ['disc', t('fee_disc_s')], ['paid', t('fee_paid')]])}</div>
+    <div class="grid2">${fld('price_h', t('price_h'), dec)}${fld('max_h', t('max_h'), dec)}</div>`;
+  if (c === 'wash') return `<div class="fld"><span class="lb">${t('wash_types')} <span class="opt">(${t('optional')})</span></span>${picks('types', [['auto', t('w_auto')], ['touchless', t('w_touchless')], ['self', t('w_self')], ['hand', t('w_hand')]], 'checkbox')}</div>
+    ${fld('price', t('wash_price'), dec)}${fld('benefit', t('benefit'), `maxlength="160" placeholder="${esc(t('benefit_ph'))}"`)}`;
+  if (c === 'drive') return `<div class="fld"><span class="lb">${catName('drive')}</span>${picks('drive', [['yes', t('drive_yes')], ['no', t('drive_no')]])}</div>`;
+  return '';
+}
+function formView(){
+  const v = S.view, p = v.key ? S.places.get(v.key) : null, c = v.cat;
+  if (v.kind === 'offer') {
+    return `<div class="dt-top" data-drag><button class="ghost" data-act="back">${IC.back}${t('offers')}</button></div>
+    <form class="form" id="repForm" novalidate><h2>${t('add_offer')}</h2>
+      <div class="fld"><span class="lb">${t('category')}</span>${picks('cat', [['fuel', catName('fuel')], ['ev', catName('ev')], ['wash', catName('wash')], ['parking', catName('parking')]], 'radio', [S.cat === 'drive' ? 'fuel' : S.cat])}</div>
+      ${fld('brand', t('company'), 'maxlength="60" autocomplete="off"', false)}${fld('title', t('offer_title'), 'maxlength="120" autocomplete="off"', false)}
+      <div class="fld"><label for="f_detail">${t('offer_detail')} <span class="opt">(${t('optional')})</span></label><textarea id="f_detail" name="detail" maxlength="400"></textarea></div>
+      <div class="grid2">${fld('valid_until', t('valid_until'), 'type="date"')}${fld('url', t('link'), 'type="url" inputmode="url" placeholder="https://" maxlength="300"')}</div>
+      <input class="hp" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+      <p class="hint">${t('public')}</p>
+      <div class="actions"><button class="btn primary" type="submit">${t('save')}</button><button class="btn" type="button" data-act="back">${t('cancel')}</button></div></form>`;
+  }
+  const title = p ? (c === 'fuel' ? t('report_prices') : t('report_update')) : t('new_place');
+  return `<div class="dt-top" data-drag><button class="ghost" data-act="back">${IC.back}${p ? esc(placeName(p)) : catName(c)}</button></div>
+    <form class="form" id="repForm" novalidate><h2>${title}</h2>${p ? `<p class="for">${esc(placeName(p))}</p>` : ''}
+      ${!p ? `${fld('name', t('place_name'), 'maxlength="80" autocomplete="off"', false, v.draftName || '')}<div class="fld"><span class="lb">${t('category')}</span>${picks('newcat', CAT_KEYS.map(k => [k, catName(k)]), 'radio', [c])}</div>` : ''}
+      ${catFields(c, p)}
+      <div class="fld"><label for="f_note">${t('note')} <span class="opt">(${t('optional')})</span></label><textarea id="f_note" name="note" maxlength="500" placeholder="${esc(t('note_ph'))}"></textarea></div>
+      <input class="hp" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+      <p class="hint">${t('public')}${!store.live ? ' ' + t('demo') : ''}</p>
+      <div class="actions"><button class="btn primary" type="submit">${t('save')}</button><button class="btn" type="button" data-act="back">${t('cancel')}</button></div></form>`;
+}
+function offersView(){
+  const cats = ['all', 'fuel', 'ev', 'wash'];
+  const list = SEED.filter(o => S.offerCat === 'all' || o.cats.includes(S.offerCat));
+  const users = S.communityOffers.filter(r => S.offerCat === 'all' || (r.data && r.data.cat === S.offerCat));
+  return `<div class="dt-top" data-drag><button class="ghost" data-act="home">${IC.back}${t('back')}</button></div>
+    <div class="sh-head"><h2 class="dt-name" style="margin:0">${t('offers')}</h2>
+    <div class="ctl">${cats.map(k => `<button class="chip" data-act="oc" data-v="${k}" aria-pressed="${S.offerCat === k}">${k === 'all' ? t('all') : catName(k)}</button>`).join('')}</div></div>
+    <p class="lead" style="margin-bottom:16px">${t('offers_intro')}</p>
+    ${list.map(offerCard).join('')}
+    <h3 class="sub-h">${t('user_offers')}</h3>
+    ${users.length ? users.slice(0, 40).map(userOfferCard).join('') : `<p class="lead">${t('no_user_offers')}</p>`}
+    <div class="actions"><button class="btn primary" data-act="addoffer">${IC.plus}${t('add_offer')}</button></div>`;
+}
+function aboutView(){
+  return `<div class="dt-top" data-drag><button class="ghost" data-act="home">${IC.back}${t('back')}</button></div>
+    <h2 class="dt-name">Tienvarsi</h2><p class="dt-sub">${t('app_tag')}</p>
+    <p class="lead" style="margin-top:14px">${t('about_lead')}</p><p class="lead" style="margin-top:10px">${t('about_prices')}</p><p class="lead" style="margin-top:10px">${t('about_mod')}</p>
+    ${!store.live ? `<p class="notice">${t('demo')}</p>` : ''}
+    <div class="sec"><h3>${t('about_sources')}</h3><dl class="facts" style="grid-template-columns:1fr">
+      <dd>${t('src_map')}</dd><dd>${t('src_places')}</dd><dd>${t('src_hel')}</dd><dd>${t('src_search')}</dd><dd>${t('src_offers')}</dd><dd>Leaflet, MapLibre GL, Supabase</dd></dl></div>`;
+}
+function renderSheet(anim = true){
+  const v = S.view; let html;
+  if (v.type === 'detail') html = detailView(S.places.get(v.key));
+  else if (v.type === 'form') html = formView();
+  else if (v.type === 'offers') html = offersView();
+  else if (v.type === 'about') html = aboutView();
+  else html = listView();
+  if (v.type === 'form' && body.querySelector('#repForm')) return; // keep typed values while data refreshes
+  body.innerHTML = html;
+  const hand = body.querySelector('.disc .hand');
+  if (hand) { if (reduced || !anim) hand.style.transform = `rotate(${hand.dataset.angle}deg)`; else requestAnimationFrame(() => requestAnimationFrame(() => { hand.style.transform = `rotate(${hand.dataset.angle}deg)`; })); }
+}
+function renderAll(){ renderMarkers(); renderSheet(); }
+
+/* ---------------- Sheet position ---------------- */
+const sheetEl = $('#sheet');
+function setSheet(state){
+  S.sheet = state;
+  sheetEl.classList.remove('peek', 'half', 'full'); sheetEl.classList.add(state);
+  document.body.classList.toggle('sheet-up', state !== 'peek');
+  $('#handle').setAttribute('aria-expanded', String(state !== 'peek'));
+}
+(() => {
+  let start = null;
+  const peekPx = () => { const el = document.createElement('div'); el.style.cssText = 'position:absolute;height:var(--peek)'; document.body.appendChild(el); const h = el.offsetHeight; el.remove(); return h; };
+  sheetEl.addEventListener('pointerdown', e => {
+    if (isDesktop()) return;
+    const zone = e.target.closest('#handle,[data-drag]'); if (!zone) return;
+    const H = sheetEl.offsetHeight, pos = {peek: H - peekPx(), half: H - innerHeight*.56, full: 0};
+    start = {y: e.clientY, base: pos[S.sheet], pos, moved: false, id: e.pointerId};
+  });
+  addEventListener('pointermove', e => {
+    if (!start || e.pointerId !== start.id) return;
+    const dy = e.clientY - start.y;
+    if (!start.moved && Math.abs(dy) < 7) return;
+    if (!start.moved) { start.moved = true; sheetEl.classList.add('dragging'); }
+    const y = Math.max(0, Math.min(start.pos.peek, start.base + dy));
+    sheetEl.style.transform = `translateY(${y}px)`;
+  });
+  addEventListener('pointerup', e => {
+    if (!start || e.pointerId !== start.id) return;
+    const s = start; start = null;
+    if (!s.moved) { if (s && e.target.closest('#handle')) setSheet(S.sheet === 'peek' ? 'half' : S.sheet === 'half' ? 'full' : 'peek'); return; }
+    sheetEl.classList.remove('dragging');
+    const y = Math.max(0, Math.min(s.pos.peek, s.base + (e.clientY - s.y)));
+    const near = Object.entries(s.pos).sort((a, b) => Math.abs(a[1] - y) - Math.abs(b[1] - y))[0][0];
+    sheetEl.style.transform = ''; setSheet(near);
+  });
+  addEventListener('pointercancel', () => { if (start) { start = null; sheetEl.classList.remove('dragging'); sheetEl.style.transform = ''; } });
+})();
+
+/* ---------------- Actions ---------------- */
+function panToPlace(p){
+  const z = Math.max(map.getZoom(), p.src === 'hel' ? 17 : 15);
+  const pt = map.project([p.lat, p.lon], z);
+  const off = isDesktop() ? L.point(-(452/2), 0) : L.point(0, innerHeight * .25);
+  map.flyTo(map.unproject(pt.add(off), z), z, {animate: !reduced, duration: .6});
+}
+function openPlace(key, fly = true){
+  const p = S.places.get(key); if (!p) return;
+  if (!p.cats.has(S.cat)) { S.cat = [...p.cats][0]; renderSigns(); }
+  S.selected = key; S.view = {type:'detail', key};
+  if (S.sheet === 'peek') setSheet('half');
+  renderAll(); body.scrollTop = 0;
+  if (fly) panToPlace(p);
+}
+function goList(){ S.view = {type:'list'}; S.selected = null; renderAll(); body.scrollTop = 0; }
+function setCat(c){
+  if (!CATS[c]) return; S.cat = c; S.selected = null; S.view = {type:'list'};
+  renderSigns(); renderAll(); refresh();
+}
+function renderSigns(){
+  $('#signs').innerHTML = CAT_KEYS.map(c => `<button class="sign" role="tab" data-cat="${c}" aria-selected="${S.cat === c}" style="--c:${CATS[c].color}"><span class="sq">${IC[c]}</span><span class="lbl">${catName(c)}</span></button>`).join('');
+}
+
+body.addEventListener('click', async e => {
+  const el = e.target.closest('[data-act]'); if (!el) return;
+  const a = el.dataset.act, v = el.dataset.v;
+  if (a === 'open') openPlace(el.dataset.key);
+  else if (a === 'back') { const vw = S.view; if (vw.type === 'form' && vw.kind === 'offer') { S.view = {type:'offers'}; renderSheet(); } else if (vw.type === 'form' && vw.key) { S.view = {type:'detail', key: vw.key}; renderSheet(); } else goList(); }
+  else if (a === 'home') goList();
+  else if (a === 'retry') { S.status[S.cat] = null; refresh(); }
+  else if (a === 'fuel') { S.fuelType = v; LS.set('tv_fuel', v); renderAll(); }
+  else if (a === 'sort') { S.sort = v; renderSheet(); }
+  else if (a === 'pf') { S.parkFilter = v; renderAll(); }
+  else if (a === 'dc') { S.driveConfirmedOnly = v === '1'; renderAll(); }
+  else if (a === 'oc') { S.offerCat = v; renderSheet(); }
+  else if (a === 'report') { S.view = {type:'form', cat: S.cat, key: S.view.key}; body.innerHTML = ''; renderSheet(); setSheet('full'); body.scrollTop = 0; const first = body.querySelector('input:not(.hp)'); if (first && isDesktop()) first.focus(); }
+  else if (a === 'addoffer') { S.view = {type:'form', kind:'offer', cat: S.cat}; body.innerHTML = ''; renderSheet(); setSheet('full'); body.scrollTop = 0; }
+  else if (a === 'vote') vote(el.dataset.id, +v);
+});
+body.addEventListener('change', e => {
+  if (e.target.name === 'newcat' && S.view.type === 'form') {
+    const name = body.querySelector('#f_name'); S.view.draftName = name ? name.value : '';
+    S.view.cat = e.target.value; body.innerHTML = ''; renderSheet();
+    const r = body.querySelector(`input[name=newcat][value=${e.target.value}]`); if (r) r.focus();
+  }
+});
+body.addEventListener('submit', e => { e.preventDefault(); submitForm(e.target); });
+
+async function vote(id, value){
+  if (S.myVotes[id]) { toast(t('already')); return; }
+  try {
+    await store.vote(id, value);
+    const o = S.votes.get(id) || {up:0, down:0}; if (value > 0) o.up++; else o.down++; S.votes.set(id, o);
+    S.myVotes[id] = value; LS.set('tv_myvotes', S.myVotes); toast(t('voted')); renderAll();
+  } catch(err) {
+    if (err.code === '23505') { S.myVotes[id] = value; LS.set('tv_myvotes', S.myVotes); toast(t('already')); renderSheet(); }
+    else toast(t('err_save'));
+  }
+}
+function readNum(fd, k, min, max, label){
+  const raw = (fd.get(k) || '').toString().trim(); if (!raw) return {v: null};
+  const v = num(raw); if (v == null || v < min || v > max) return {err: t('err_range', {f: label})};
+  return {v};
+}
+async function submitForm(form){
+  const fd = new FormData(form); if (fd.get('website')) return;
+  const v = S.view, btn = form.querySelector('[type=submit]');
+  const fail = msg => { toast(msg); };
+  let row;
+  if (v.kind === 'offer') {
+    const brand = (fd.get('brand') || '').toString().trim(), title = (fd.get('title') || '').toString().trim(), url = (fd.get('url') || '').toString().trim();
+    if (!brand || !title) return fail(t('err_offer'));
+    if (url && !/^https:\/\//i.test(url)) return fail(t('err_url'));
+    const data = {brand: brand.slice(0, 60), title: title.slice(0, 120), cat: fd.get('cat') || 'fuel'};
+    const detail = (fd.get('detail') || '').toString().trim(); if (detail) data.detail = detail.slice(0, 400);
+    const vu = fd.get('valid_until'); if (vu) data.valid_until = vu;
+    if (url) data.url = url.slice(0, 300);
+    row = {category:'offer', place_key:'offer:' + brand.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40), place_name: brand.slice(0, 120), lat:null, lon:null, data, note:null, client_id: CID, lang};
+  } else {
+    const p = v.key ? S.places.get(v.key) : null, c = v.cat, data = {};
+    if (!p) { const name = (fd.get('name') || '').toString().trim(); if (!name) return fail(t('err_name')); data.name = name.slice(0, 80); }
+    let r;
+    if (c === 'fuel') {
+      let any = false;
+      for (const f of FUELS) { if (!fd.has(f.k)) continue; r = readNum(fd, f.k, .5, 4.5, fuelLabel(f)); if (r.err) return fail(r.err); if (r.v != null) { data[f.k] = Math.round(r.v*1000)/1000; any = true; } }
+      if (!any && p) return fail(t('err_price'));
+    } else if (c === 'ev') {
+      if (fd.get('status')) data.status = fd.get('status');
+      for (const [k, mx, lb] of [['price_kwh', 2, t('price_kwh')], ['price_min', 2, t('price_min')], ['start_fee', 10, t('start_fee')], ['max_kw', 1000, t('max_kw')]]) { r = readNum(fd, k, 0, mx, lb); if (r.err) return fail(r.err); if (r.v != null) data[k] = r.v; }
+      const op = (fd.get('operator') || '').toString().trim(); if (op) data.operator = op.slice(0, 60);
+    } else if (c === 'parking') {
+      if (fd.get('fee')) data.fee = fd.get('fee');
+      r = readNum(fd, 'price_h', 0, 30, t('price_h')); if (r.err) return fail(r.err); if (r.v != null) data.price_h = r.v;
+      r = readNum(fd, 'max_h', 0, 72, t('max_h')); if (r.err) return fail(r.err); if (r.v != null) data.max_h = r.v;
+    } else if (c === 'wash') {
+      const types = fd.getAll('types'); if (types.length) data.types = types;
+      r = readNum(fd, 'price', 0, 300, t('wash_price')); if (r.err) return fail(r.err); if (r.v != null) data.price = r.v;
+      const bn = (fd.get('benefit') || '').toString().trim(); if (bn) data.benefit = bn.slice(0, 160);
+    } else if (c === 'drive') { if (fd.get('drive')) data.drive = fd.get('drive'); }
+    const note = (fd.get('note') || '').toString().trim();
+    if (p && Object.keys(data).length === 0 && !note) return fail(t('err_empty'));
+    const pos = p ? {lat: p.lat, lon: p.lon} : v.newPlace;
+    row = {category: c, place_key: p ? p.key : 'user:' + uuid(), place_name: (p ? placeName(p) : data.name).slice(0, 120), lat: +pos.lat.toFixed(6), lon: +pos.lon.toFixed(6), data, note: note ? note.slice(0, 500) : null, client_id: CID, lang};
+  }
+  btn.disabled = true; btn.textContent = t('saving');
+  try {
+    const saved = await store.add(row);
+    ingestReports([saved]);
+    if (row.category === 'offer') { toast(t('offer_saved')); S.view = {type:'offers'}; }
+    else { toast(t('saved')); if (row.category !== S.cat) { S.cat = row.category; renderSigns(); } S.selected = row.place_key; S.view = {type:'detail', key: row.place_key}; }
+    body.innerHTML = ''; renderAll(); body.scrollTop = 0; setSheet('half');
+  } catch(err) {
+    btn.disabled = false; btn.textContent = t('save');
+    toast(/rate_limited/.test(err.message || '') ? t('err_rate') : t('err_save'));
+  }
+}
+
+/* Header controls */
+$('#signs').addEventListener('click', e => { const b = e.target.closest('[data-cat]'); if (b) setCat(b.dataset.cat); });
+document.querySelector('.lang').addEventListener('click', e => { const b = e.target.closest('[data-lang]'); if (!b) return; lang = b.dataset.lang; LS.set('tv_lang', lang); applyI18n(); });
+$('#brand').addEventListener('click', e => { e.preventDefault(); S.view = {type:'about'}; renderSheet(); setSheet('half'); body.scrollTop = 0; });
+$('#aboutBtn').addEventListener('click', () => { S.view = {type:'about'}; renderSheet(); setSheet('half'); body.scrollTop = 0; });
+$('#offersBtn').addEventListener('click', () => { S.offerCat = S.cat === 'parking' || S.cat === 'drive' ? 'all' : S.cat; S.view = {type:'offers'}; renderSheet(); setSheet('full'); body.scrollTop = 0; });
+$('#locateBtn').addEventListener('click', () => {
+  if (!navigator.geolocation) return toast(t('geo_denied'));
+  navigator.geolocation.getCurrentPosition(pos => {
+    S.ref = {lat: pos.coords.latitude, lon: pos.coords.longitude};
+    if (meMarker) map.removeLayer(meMarker);
+    meMarker = L.marker([S.ref.lat, S.ref.lon], {icon: L.divIcon({className:'mk', iconSize:null, html:'<div class="pin me-dot"></div>'}), interactive:false, keyboard:false}).addTo(map);
+    map.flyTo([S.ref.lat, S.ref.lon], Math.max(map.getZoom(), 14), {animate: !reduced});
+  }, () => toast(t('geo_denied')), {enableHighAccuracy:true, timeout:10000, maximumAge:60000});
+});
+
+/* Add a missing place */
+const placingEl = $('#placing'), useSpot = $('#useSpot');
+$('#addBtn').addEventListener('click', () => {
+  S.placing = {}; placingEl.hidden = false; useSpot.disabled = true; document.body.classList.add('placing-on');
+});
+function endPlacing(){ S.placing = null; placingEl.hidden = true; document.body.classList.remove('placing-on'); if (placingMarker) { map.removeLayer(placingMarker); placingMarker = null; } }
+$('#cancelPlacing').addEventListener('click', endPlacing);
+useSpot.addEventListener('click', () => {
+  if (!placingMarker) return; const ll = placingMarker.getLatLng();
+  endPlacing(); S.selected = null;
+  S.view = {type:'form', cat: S.cat, newPlace: {lat: ll.lat, lon: ll.lng}}; body.innerHTML = ''; renderSheet(); setSheet('full'); body.scrollTop = 0;
+});
+map.on('click', e => {
+  if (S.placing) {
+    if (placingMarker) placingMarker.setLatLng(e.latlng);
+    else placingMarker = L.marker(e.latlng, {draggable:true, icon: L.divIcon({className:'mk', iconSize:null, html:'<div class="pin placing-pin" style="left:0;top:0"></div>'})}).addTo(map);
+    useSpot.disabled = false; return;
+  }
+  if (!isDesktop() && S.sheet !== 'peek') setSheet('peek');
+});
+
+/* Search */
+const qEl = $('#q'), resEl = $('#results');
+function showResults(html){ resEl.innerHTML = html; resEl.hidden = !html; }
+$('#searchForm').addEventListener('submit', async e => {
+  e.preventDefault(); const q = qEl.value.trim(); if (!q) return;
+  const m = q.match(/^\s*(-?\d{1,2}(?:\.\d+)?)\s*[,;\s]\s*(-?\d{1,3}(?:\.\d+)?)\s*$/);
+  if (m) { flyToPoint(+m[1], +m[2], 15); showResults(''); qEl.blur(); return; }
+  showResults(`<li><p>${t('searching')}</p></li>`);
+  try {
+    const url = `${CONFIG.NOMINATIM}?format=jsonv2&countrycodes=fi&limit=6&accept-language=${lang}&q=${encodeURIComponent(q)}`;
+    const res = await fetch(url, {headers:{'Accept':'application/json'}}); const rows = await res.json();
+    if (!rows.length) return showResults(`<li><p>${t('search_none')}</p></li>`);
+    showResults(rows.map(r => { const parts = r.display_name.split(', '); return `<li><button type="button" data-lat="${r.lat}" data-lon="${r.lon}" data-z="${/city|town|municipality|administrative/.test(r.type + r.addresstype) ? 13 : 16}"><span class="r1">${esc(parts[0])}</span><span class="r2">${esc(parts.slice(1, 4).join(', '))}</span></button></li>`; }).join(''));
+  } catch(err) { showResults(`<li><p>${t('err_save')}</p></li>`); }
+});
+resEl.addEventListener('click', e => { const b = e.target.closest('button[data-lat]'); if (!b) return; flyToPoint(+b.dataset.lat, +b.dataset.lon, +b.dataset.z); showResults(''); qEl.blur(); });
+document.addEventListener('click', e => { if (!e.target.closest('#searchForm')) showResults(''); });
+function flyToPoint(lat, lon, z){
+  if (dropMarker) map.removeLayer(dropMarker);
+  dropMarker = L.marker([lat, lon], {icon: L.divIcon({className:'mk', iconSize:null, html:'<div class="pin drop" style="left:0;top:0"></div>'}), interactive:false, keyboard:false}).addTo(map);
+  S.ref = {lat, lon}; map.flyTo([lat, lon], z, {animate: !reduced}); if (S.view.type !== 'list') goList();
+}
+addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  if (S.placing) return endPlacing();
+  if (!resEl.hidden) return showResults('');
+  if (S.view.type !== 'list') goList(); else if (!isDesktop()) setSheet('peek');
+});
+
+/* i18n */
+function applyI18n(){
+  document.documentElement.lang = lang;
+  document.querySelectorAll('[data-i18n]').forEach(el => el.textContent = t(el.dataset.i18n));
+  document.querySelectorAll('[data-i18n-ph]').forEach(el => el.placeholder = t(el.dataset.i18nPh));
+  document.querySelectorAll('[data-i18n-aria]').forEach(el => { el.setAttribute('aria-label', t(el.dataset.i18nAria)); el.title = t(el.dataset.i18nAria); });
+  document.querySelectorAll('[data-lang]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.lang === lang)));
+  $('#handle').setAttribute('aria-label', t('expand'));
+  renderSigns(); body.innerHTML = ''; renderAll();
+}
+
+/* Shared links: react when someone pastes a new #category/zoom/lat/lon */
+addEventListener('hashchange', () => {
+  const m = location.hash.match(/^#(fuel|ev|parking|wash|drive)\/(\d+(?:\.\d+)?)\/(-?\d+\.\d+)\/(-?\d+\.\d+)/); if (!m) return;
+  if (m[1] !== S.cat) { S.cat = m[1]; S.selected = null; S.view = {type:'list'}; renderSigns(); }
+  map.setView([+m[3], +m[4]], +m[2]); renderAll();
+});
+
+/* Start */
+map.on('moveend', debounce(refresh, 350));
+applyI18n();
+addBasemap();
+store.offers().then(async rows => { ingestReports(rows); const ids = rows.map(r => r.id); if (ids.length) { const v = await store.votes(ids); for (const [id, o] of Object.entries(v)) S.votes.set(id, o); } if (S.view.type === 'offers') renderSheet(); }).catch(() => {});
+refresh();
+setInterval(() => { if (S.view.type === 'detail' && body.querySelector('.disc')) { const st = body.scrollTop; renderSheet(false); body.scrollTop = st; } }, 60000);
+})();
+</script>
+</body>
+</html>
